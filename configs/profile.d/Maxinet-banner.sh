@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.0
+# Maxinet Network - Premium Welcome Banner v2.2
 # DiseÃ±o profesional - alineaciÃ³n exacta de panel
 #==================================================
 [[ $- != *i* ]] && return

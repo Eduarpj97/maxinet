@@ -3581,7 +3581,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.0
+# Maxinet Network - Premium Welcome Banner v2.2
 # Diseño profesional - alineación exacta de panel
 #==================================================
 [[ $- != *i* ]] && return
@@ -3814,7 +3814,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.0  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.2  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>
