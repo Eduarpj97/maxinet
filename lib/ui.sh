@@ -321,7 +321,7 @@ mv_header(){
 # ── Header dorado con sello (idéntico al banner: ── ◆ MAXINET ◆ ──) ──
 mv_gold_header(){
     mv_line
-    mv_center "${MV_GLD}── ${MV_R}${MV_GLD}◆${MV_R} ${MV_GLD}M A X I N E T${MV_R} ${MV_GLD}◆${MV_R} ${MV_GLD}──${MV_R}"
+    mv_center "${MV_RED}── ${MV_R}${MV_RED}◆${MV_R} ${MV_RED}M A X I N E T${MV_R} ${MV_RED}◆${MV_R} ${MV_RED}──${MV_R}"
     mv_line
 }
 
@@ -502,7 +502,7 @@ mv_prow_center(){
 maxinet_footer(){
     echo ""
     mv_line_thin
-    mv_center "${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡ ${MV_R}${MV_CYN}⋆｡˚⊱ ${MV_GLD}${MV_BLD}M A X I N E T${MV_R}${MV_CYN} ⊰˚｡⋆${MV_R} ${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡${MV_R}"
+    mv_center "${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡ ${MV_R}${MV_CYN}⋆｡˚⊱ ${MV_RED} M A X I N E T${MV_R}${MV_CYN} ⊰˚｡⋆${MV_R} ${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡${MV_R}"
     mv_center "${MV_DIM}🤝 Socios:${MV_R} ${MV_WHT}t.me/FreeNetZonevip${MV_R} ${MV_DIM}·${MV_R} ${MV_WHT}t.me/FreeNetZonevips${MV_R}"
     mv_line_thin
 }

@@ -155,7 +155,7 @@ center "${C_AZUL}${BOLD}   âââââââââ�
 center "${C_AZUL}${BOLD}   âââ âââ ââââââââââââ âââââââ âââ âââââââ ââââââ     ${C_RESET}"
 center "${C_AZUL2}${BOLD}   âââ     âââ âââââââ   âââââ  âââ  âââââ  ââââââ     ${C_RESET}"
 center ""
-center "${C_DORADO}${BOLD}  ââ  â  M A X I N E T   N E T W O R K  â  ââ  ${C_RESET}"
+center "${C_ROJO}${BOLD}  ââ  â  M A X I N E T   N E T W O R K  â  ââ  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        ð  EDICIÃN PREMIUM â 2026  ð${C_RESET}"
 center ""
 hr "â"
@@ -201,8 +201,8 @@ if [[ $EUID -ne 0 ]]; then
     center "${C_ROJO}${BOLD}ð Usuario${C_RESET}   : ${C_BLANCO}$(whoami)${C_RESET}"
     center "${C_ROJO}${BOLD}â ï¸  Advertencia${C_RESET} : ${C_AMARILLO}No eres root â ejecuta:${C_RESET} ${C_VERDE}sudo -i${C_RESET}"
 else
-    center "${C_DORADO}${BOLD}ð Usuario${C_RESET}   : ${C_BLANCO}root${C_RESET}"
-    center "${C_DORADO}${BOLD}â¡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}menu${C_RESET}"
+    center "${C_ROJO}${BOLD}ð Usuario${C_RESET}   : ${C_BLANCO}root${C_RESET}"
+    center "${C_ROJO}${BOLD}â¡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}menu${C_RESET}"
 fi
 center ""
 

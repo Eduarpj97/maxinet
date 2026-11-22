@@ -3622,42 +3622,6 @@ if [[ "$CONG_REAL" == "bbr" ]]; then
     fi
 fi
 
-# ── Info de red real (MTU, Buffer, Congestión) ──
-IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}')
-IFACE="${IFACE:-eth0}"
-    fi
-fi
-
-
-# ── Info de red real (MTU, Buffer, Congestión) ──
-IFACE=$(ip route 2>/dev/null | awk '"'"'/^default/ {print $5; exit}'"'"')
-IFACE="${IFACE:-eth0}"
-RMEM=$(sysctl -n net.ipv4.tcp_rmem 2>/dev/null | awk '"'"'{print $3}'"'"')
-WMEM=$(sysctl -n net.ipv4.tcp_wmem 2>/dev/null | awk '"'"'{print $3}'"'"')
-BUF_RX=$((RMEM / 1024 / 1024))
-BUF_TX=$((WMEM / 1024 / 1024))
-[[ $BUF_RX -eq 0 ]] && BUF_RX=64
-[[ $BUF_TX -eq 0 ]] && BUF_TX=64
-CONG_REAL=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "bbr")
-if [[ "$CONG_REAL" == "bbr" ]]; then
-    if sysctl -n net.core.default_qdisc 2>/dev/null | grep -q fq; then
-        CONG_REAL="BBR v3 + FQ Pacing"
-    else
-        CONG_REAL="BBR v3"
-    fi
-fi
-
-# ── Colores (ANSI 256) ────────────────────────────
-C_RESET="\e[0m"
-C_CIAN="\e[38;5;45m"
-C_CIAN2="\e[38;5;51m"
-C_AZUL="\e[38;5;39m"
-C_AZUL2="\e[38;5;33m"
-C_DORADO="\e[38;5;220m"
-C_AMARILLO="\e[38;5;226m"
-C_BLANCO="\e[38;5;255m"
-C_GRIS="\e[38;5;245m"
-C_VERDE="\e[38;5;82m"
 C_ROJO="\e[38;5;203m"
 C_MORADO="\e[38;5;201m"
 C_NARANJA="\e[38;5;208m"
@@ -3760,7 +3724,7 @@ center "${C_AZUL}${BOLD}   ██║╚██╔╝██║██║   ██�
 center "${C_AZUL}${BOLD}   ██║ ╚═╝ ██║╚██████╔╝ ╚████╔╝ ██║ ╚████╔╝ ██║██║     ${C_RESET}"
 center "${C_AZUL2}${BOLD}   ╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═══╝  ╚═╝╚═╝     ${C_RESET}"
 center ""
-center "${C_DORADO}${BOLD}  ──  ◆  M A X I N E T   N E T W O R K  ◆  ──  ${C_RESET}"
+center "${C_ROJO}${BOLD}  ──  ◆  M A X I N E T   N E T W O R K  ◆  ──  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
 center ""
 hr "═"
@@ -3806,8 +3770,8 @@ if [[ $EUID -ne 0 ]]; then
     center "${C_ROJO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}$(whoami)${C_RESET}"
     center "${C_ROJO}${BOLD}⚠️  Advertencia${C_RESET} : ${C_AMARILLO}No eres root — ejecuta:${C_RESET} ${C_VERDE}sudo -i${C_RESET}"
 else
-    center "${C_DORADO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}root${C_RESET}"
-    center "${C_DORADO}${BOLD}⚡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}menu${C_RESET}"
+    center "${C_ROJO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}root${C_RESET}"
+    center "${C_ROJO}${BOLD}⚡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}menu${C_RESET}"
 fi
 center ""
 
@@ -3825,24 +3789,52 @@ BEOF
 
 # Sello no condicional (sin planes).
 _ISSUE_SELLO=""
-# v8.2.1 FIX: el banner de /etc/issue.net SIEMPRE es el 3D de marca (HTML),
-# no un texto genérico feo. Si el archivo del paquete existe se copia tal cual;
-# el sello se añade condicionalmente (solo cliente normal, como arriba).
-if [[ -f "/etc/maxinet/lib/banners/issue_net_3d.html" ]]; then
-    cp -f /etc/maxinet/lib/banners/issue_net_3d.html /etc/issue.net
-else
-    cat > /etc/issue.net << IEOF
-################################################################
-#
-#       Acceso autorizado. Conexiones monitoreadas las 24 horas.
-${_ISSUE_SELLO}
-#
-################################################################
+# Generar issue.net dinámicamente con info de red real (MTU, Buffer, Congestión)
+IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}')
+IFACE="${IFACE:-eth0}"
+MTU_REAL=$(cat /sys/class/net/"$IFACE"/mtu 2>/dev/null || echo "1470")
+RMEM=$(sysctl -n net.ipv4.tcp_rmem 2>/dev/null | awk '{print $3}')
+WMEM=$(sysctl -n net.ipv4.tcp_wmem 2>/dev/null | awk '{print $3}')
+BUF_RX=$((RMEM / 1024 / 1024))
+BUF_TX=$((WMEM / 1024 / 1024))
+[[ $BUF_RX -eq 0 ]] && BUF_RX=64
+[[ $BUF_TX -eq 0 ]] && BUF_TX=64
+CONG_REAL=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "bbr")
+if [[ "$CONG_REAL" == "bbr" ]]; then
+    if sysctl -n net.core.default_qdisc 2>/dev/null | grep -q fq; then
+        CONG_REAL="BBR v3 + FQ Pacing"
+    else
+        CONG_REAL="BBR v3"
+    fi
+fi
+
+# Generar HTML del banner con info de red real
+cat > /etc/issue.net << IEOF
+<html>
+<body style='margin:0;padding:0;background:transparent'>
+<div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
+<br><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.0  🛡 🛡️</big></big></font><br>
+<font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
+<font color='#29b6f6'>════════════════════════════</font><br><br>
+<font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>
+<font color='#ffff00'>📢 Canal: https://t.me/FreeNetZonevip</font><br>
+<font color='#ffff00'>📢 Grupo: https://t.me/FreeNetZonevips</font><br>
+<font color='#29b6f6'>════════════════════════════</font><br><br>
+<font color='#ffffff'><big>🤝 ⚡ℂ𝕆𝕃𝔸𝔹𝕆ℝ𝔸ℂ𝕀𝕆́ℕ / ℂ𝕆𝕄𝕌ℕ𝕀𝔻𝔸𝔻 𝕊𝕆ℂ𝕀𝔸 ⚡ 🤝</big></font><br><br>
+<font color='#ffff00'>📢 Canal: @Maxinet</font><br>
+<font color='#ffff00'>📢 Grupo: @MaxinetNet</font><br>
+<font color='#00ffff'>🌐 𝕎𝔼𝔹: https://maxinet-network.web.app</font><br><br>
+<font color='#00ffff'>👤 Soporte: @Maxinet</font><br><br>
+<font color='#FF0000'><big>🔧 MTU: ${MTU_REAL}</big></font><br>
+<font color='#FF0000'><big>📦 Buffer RX/TX: ${BUF_RX}MB / ${BUF_TX}MB</big></font><br>
+<font color='#FF0000'><big>🚀 Congestión: ${CONG_REAL}</big></font><br><br>
+<font color='#FFD700'><big><big><big>🐉</big></big></big></font><br>
+<font color="#00ffff"><small><i>🛡SISTEMA PROTEGIDO POR MAXINET NETWORK🛡</i></small></font>
+</span></div>
+</body>
+</html>
 IEOF
-fi
-if [[ -n "$_ISSUE_SELLO" ]]; then
-    printf '\n%s\n' "$_ISSUE_SELLO" >> /etc/issue.net
-fi
 
 run_cmd "Configurando banner en sshd_config" "$LINENO" "grep -q '^Banner' /etc/ssh/sshd_config 2>/dev/null && sed -i 's|^Banner.*|Banner /etc/issue.net|' /etc/ssh/sshd_config || echo 'Banner /etc/issue.net' >> /etc/ssh/sshd_config"
 run_cmd "Configurando banner en dropbear" "$LINENO" "grep -q 'DROPBEAR_BANNER' /etc/default/dropbear 2>/dev/null || echo 'DROPBEAR_BANNER=\"/etc/issue.net\"' >> /etc/default/dropbear"
