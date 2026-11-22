@@ -1,0 +1,13 @@
+[Unit]
+Description=Maxinet Payload PDirect (HTTP Direct Tunnel)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /etc/maxinet/payload/payloads/pdirect.py -l 127.0.0.1:22 -p 8083 -c NCx47uhwvW8Dchu -r 200 -t Maxinet
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

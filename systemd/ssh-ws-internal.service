@@ -1,0 +1,13 @@
+[Unit]
+Description=SSH WebSocket Internal (127.0.0.1:10015)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /usr/local/bin/ssh-ws-internal.py 10015
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

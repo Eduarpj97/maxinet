@@ -1,0 +1,3 @@
+#!/bin/bash
+# Maxinet Network — launcher seguro del menú de usuarios
+exec bash /etc/maxinet/lib/launch.sh /etc/maxinet/usuarios/menu.sh "$@"

@@ -1,0 +1,13 @@
+[Unit]
+Description=Maxinet Payload PPub (Public Proxy Tunnel)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /etc/maxinet/payload/payloads/ppub.py 8085 Maxinet
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

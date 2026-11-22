@@ -1,0 +1,44 @@
+[DEFAULT]
+bantime  = 1h
+findtime = 10m
+maxretry = 3
+ignoreip = 127.0.0.1/8 ::1
+banaction = iptables-multiport
+banaction_allports = iptables-allports
+destemail =
+sender =
+mta = sendmail
+backend = auto
+logtarget = /var/log/fail2ban.log
+
+[sshd]
+enabled  = true
+port     = ssh
+filter   = sshd
+logpath  = /var/log/auth.log
+maxretry = 3
+bantime  = 1h
+
+[dropbear]
+enabled  = true
+port     = 90,109,143
+filter   = dropbear
+logpath  = /var/log/auth.log
+maxretry = 3
+bantime  = 1h
+
+[sshd-ddos]
+enabled  = true
+port     = ssh
+filter   = sshd-ddos
+logpath  = /var/log/auth.log
+maxretry = 5
+bantime  = 2h
+
+[recidive]
+enabled  = true
+logpath  = /var/log/fail2ban.log
+banaction = iptables-allports
+bantime  = 1w
+findtime = 1d
+maxretry = 5

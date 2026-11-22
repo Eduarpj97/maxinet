@@ -1,0 +1,13 @@
+[Unit]
+Description=Maxinet Payload PPriv (Private Proxy Tunnel)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/bin/python3 /etc/maxinet/payload/payloads/ppriv.py 8084 Maxinet 127.0.0.1
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,44 @@
+#!/bin/bash
+# Auto-sign SSL certificate for a new domain
+# Usage: auto-sign-domain <domain> [ip]
+DOMAIN="${1:-}"
+IP="${2:-$(curl -s4 ifconfig.me 2>/dev/null || echo '127.0.0.1')}"
+CERT_DIR="/etc/ssl/maxinet"
+HAPROXY_CERT="/etc/haproxy/yha.pem"
+if [ -z "$DOMAIN" ]; then
+    echo "$(trx 'Uso: auto-sign-domain <dominio> [ip]')"
+    exit 1
+fi
+echo "Auto-signing certificate for: $DOMAIN"
+cat > /tmp/openssl_${DOMAIN}.cnf << EOFCNF
+[req]
+default_bits = 2048
+prompt = no
+default_md = sha256
+distinguished_name = dn
+x509_extensions = v3_req
+[dn]
+C = CO
+ST = Bogota
+L = Bogota
+O = Maxinet Network
+OU = VPN
+CN = ${DOMAIN}
+[v3_req]
+subjectAltName = @alt_names
+[alt_names]
+DNS.1 = ${DOMAIN}
+DNS.2 = *.${DOMAIN}
+DNS.3 = ${DOMAIN#*.}
+IP.1 = ${IP}
+EOFCNF
+openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout "${CERT_DIR}/${DOMAIN}.key" \
+    -out "${CERT_DIR}/${DOMAIN}.crt" \
+    -config /tmp/openssl_${DOMAIN}.cnf 2>/dev/null
+cat "${CERT_DIR}/${DOMAIN}.crt" "${CERT_DIR}/${DOMAIN}.key" >> "$HAPROXY_CERT"
+chmod 600 "$HAPROXY_CERT"
+cp "${CERT_DIR}/${DOMAIN}.crt" /usr/local/etc/xray/ 2>/dev/null
+cp "${CERT_DIR}/${DOMAIN}.key" /usr/local/etc/xray/ 2>/dev/null
+systemctl reload haproxy 2>/dev/null || systemctl restart haproxy
+echo "OK: Certificate generated for $DOMAIN"

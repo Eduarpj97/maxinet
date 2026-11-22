@@ -1,0 +1,14 @@
+[Unit]
+Description=UDP Custom Server Maxinet
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/usr/bin
+ExecStart=/usr/bin/udp server -exclude 2200,7300,7200,7100,323,10008,10004,5667 /usr/bin/config.json
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+[Unit]
+Description=Maxinet Network - Restaurar config de red al arranque
+After=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+ExecStart=/etc/maxinet/scripts/boot-network.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

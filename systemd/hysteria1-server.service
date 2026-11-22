@@ -1,0 +1,14 @@
+[Unit]
+Description=Maxinet Hysteria Server
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=/usr/local/bin/hysteria1 -config /etc/hysteria/config.json server
+Restart=always
+RestartSec=3
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
