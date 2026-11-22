@@ -1,12 +1,12 @@
 #!/bin/bash
 #==================================================
 # Maxinet Network - Premium Welcome Banner v2.4
-# DiseÃ±o profesional - alineaciÃ³n exacta de panel
+# Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
 clear
 
-# ââ Datos del sistema âââââââââââââââââââââââââââââ
+# ── Datos del sistema ──────────────────────────
 SERVER=$(hostname)
 IP_LOCAL=$(hostname -I 2>/dev/null | awk '{print $1}')
 DOMAIN="-"
@@ -41,8 +41,7 @@ if [[ "$CONG_REAL" == "bbr" ]]; then
     fi
 fi
 
-
-# ââ Colores (ANSI 256) ââââââââââââââââââââââââââââ
+# ── Colores (ANSI 256) ──────────────────────────
 C_RESET="\e[0m"
 C_CIAN="\e[38;5;45m"
 C_CIAN2="\e[38;5;51m"
@@ -58,7 +57,7 @@ C_MORADO="\e[38;5;201m"
 C_NARANJA="\e[38;5;208m"
 BOLD="\e[1m"
 
-# ââ Utilidades ââââââââââââââââââââââââââââââââââââ
+# ── Utilidades ─────────────────────────────────
 COLS=$(tput cols 2>/dev/null || echo 80)
 
 # long: ancho visible de un texto (sin ANSI), cuenta emojis como 2 cols
@@ -73,7 +72,8 @@ long() {
     [[ -z "$ne" ]] && ne=0
     echo $(( n + ne ))
 }
-# center: centra texto (soporta cÃ³digos ANSI)
+
+# center: centra texto (soporta códigos ANSI)
 center() {
     local text="$1"
     local len
@@ -83,16 +83,17 @@ center() {
     printf '%*s' "$pad" ""
     printf '%b\n' "$text"
 }
-# hr: lÃ­nea horizontal adaptada al ancho
+
+# hr: línea horizontal adaptada al ancho
 hr() {
-    local char="${1:-â}"
+    local char="${1:-═}"
     local line=""
     local i
     for ((i=0; i<COLS; i++)); do line+="$char"; done
     printf '%b\n' "${C_AZUL}${line}${C_RESET}"
 }
 
-# ââ Panel (ancho fijo, alineaciÃ³n perfecta) âââââââ
+# ── Panel (ancho fijo, alineación perfecta) ─────
 PW=46                      # ancho interior del panel (celdas)
 PL=$(( (COLS - PW - 2) / 2 ))   # padding izquierdo
 [[ $PL -lt 0 ]] && PL=0
@@ -105,33 +106,37 @@ p_linea() {
     local fill=$(( PW - len ))
     [[ $fill -lt 0 ]] && fill=0
     printf '%*s' "$PL" ""
-    printf '%b' "${C_MORADO}${BOLD}â${C_RESET}${content}"
+    printf '%b' "${C_CIAN}${BOLD}│${C_RESET}${content}"
     printf '%*s' "$fill" ""
-    printf '%b\n' "${C_MORADO}${BOLD}â${C_RESET}"
+    printf '%b\n' "${C_CIAN}${BOLD}│${C_RESET}"
 }
+
 # p_marco_sup / p_marco_inf
 _repeat() {
     local char="$1" n="$2" out="" i
     for ((i=0; i<n; i++)); do out+="$char"; done
     printf '%s' "$out"
 }
+
 p_marco_sup() {
     printf '%*s' "$PL" ""
-    printf '%b' "${C_MORADO}${BOLD}â"
-    printf '%b' "${C_MORADO}$(_repeat 'â' "$PW")"
-    printf '%b\n' "${C_MORADO}${BOLD}â${C_RESET}"
+    printf '%b' "${C_CIAN}${BOLD}┌"
+    printf '%b' "${C_CIAN}$(_repeat '─' "$PW")"
+    printf '%b\n' "${C_CIAN}${BOLD}┐${C_RESET}"
 }
+
 p_marco_inf() {
     printf '%*s' "$PL" ""
-    printf '%b' "${C_MORADO}${BOLD}â"
-    printf '%b' "${C_MORADO}$(_repeat 'â' "$PW")"
-    printf '%b\n' "${C_MORADO}${BOLD}â${C_RESET}"
+    printf '%b' "${C_CIAN}${BOLD}└"
+    printf '%b' "${C_CIAN}$(_repeat '─' "$PW")"
+    printf '%b\n' "${C_CIAN}${BOLD}┘${C_RESET}"
 }
+
 # p_fila <icono(1celda)> <label> <valor>
 p_fila() {
     local icon="$1" label="$2" valor="$3"
     local txt
-    txt="  ${C_NARANJA}${icon}${C_RESET} ${C_CIAN}${BOLD}${label}${C_RESET}"
+    txt="  ${C_DORADO}${icon}${C_RESET} ${C_CIAN2}${BOLD}${label}${C_RESET}"
     local len_lbl
     len_lbl=$(( 2 + 1 + 1 + ${#label} + 1 ))   # espacios + icono + espacio + label + :
     local len_val=${#valor}
@@ -140,7 +145,7 @@ p_fila() {
     local gap=""
     local i
     for ((i=0; i<dots; i++)); do gap+=" "; done
-    p_linea "${txt}${gap}${C_BLANCO}${valor}${C_RESET}"
+    p_linea "${txt}${gap}${C_BLANCO}${BOLD}${valor}${C_RESET}"
 }
 
 # ==================================================
@@ -158,66 +163,48 @@ center ""
 center "${C_DORADO}${BOLD}    ──  ◆  MAXINET NETWORK  ◆  ──  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
 center ""
-center ""
-hr "â"
+hr "═"
 center ""
 
-# ââ Panel de informaciÃ³n ââââââââââââââââââââââââââ
+# ── Panel de información ──────────────────────────
 p_marco_sup
-p_linea "${C_BLANCO}${BOLD}          ð  INFORMACIÃN DEL SERVIDOR          ${C_RESET}"
+p_linea "${C_BLANCO}${BOLD}          📊  INFORMACIÓN DEL SERVIDOR          ${C_RESET}"
 p_marco_inf
 p_marco_sup
-p_fila "â¶" "Servidor"   "${SERVER}"
-p_fila "â" "Dominio"    "${DOMAIN}"
-p_fila "â" "IP PÃºblica" "${IP_LOCAL}"
-p_fila "â¡" "Uptime"     "${UPTIME}"
-p_fila "âª" "Conectados" "${ONLINE}"
-p_fila "â" "Fecha"      "${FECHA}"
-p_fila "â" "Hora"       "${HORA}"
-p_fila "🔧" "MTU"        "${MTU_REAL}"
+p_fila "▶" "Servidor"     "${SERVER}"
+p_fila "●" "Dominio"      "${DOMAIN}"
+p_fila "◈" "IP Pública"   "${IP_LOCAL}"
+p_fila "⚡" "Uptime"       "${UPTIME}"
+p_fila "✪" "Conectados"   "${ONLINE}"
+p_fila "◆" "Fecha"        "${FECHA}"
+p_fila "◉" "Hora"         "${HORA}"
+p_fila "🔧" "MTU"          "${MTU_REAL}"
 p_fila "📦" "Buffer RX/TX" "${BUF_RX}MB / ${BUF_TX}MB"
 p_fila "🚀" "Congestión"   "${CONG_REAL}"
 if [[ -n "$TG_CHANNEL" ]]; then
-    p_fila "â¯" "Canal"  "${TG_CHANNEL}"
+    p_fila "❯" "Canal"    "${TG_CHANNEL}"
 fi
 if [[ -n "$TG_GROUP" ]]; then
-    p_fila "â¯" "Grupo"  "${TG_GROUP}"
+    p_fila "❯" "Grupo"    "${TG_GROUP}"
 fi
 p_marco_inf
 center ""
 
-# ?????? Panel de planes y precios (informativo, estatico en USDT) ??????
-p_marco_sup
-p_linea "${C_BLANCO}${BOLD}          ????  PLANES Y PRECIOS  ????          ${C_RESET}"
-p_marco_inf
-p_marco_sup
-p_fila "â¯" "BRONCE"        "5 USDT   - 1 dispositivo"
-p_fila "â¯" "PREMIUM"       "15 USDT  - 2 dispositivos"
-p_fila "â¯" "BETA/VITALICIA" "100 USDT - Ilimitado"
-p_marco_inf
-center ""
-
-# ââ Usuario / acciÃ³n ââââââââââââââââââââââââââââââ
+# ── Usuario / acción ─────────────────────────────
 if [[ $EUID -ne 0 ]]; then
-    center "${C_ROJO}${BOLD}ð Usuario${C_RESET}   : ${C_BLANCO}$(whoami)${C_RESET}"
-    center "${C_ROJO}${BOLD}â ï¸  Advertencia${C_RESET} : ${C_AMARILLO}No eres root â ejecuta:${C_RESET} ${C_VERDE}sudo -i${C_RESET}"
+    center "${C_DORADO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}$(whoami)${C_RESET}"
+    center "${C_ROJO}${BOLD}⚠️  Advertencia${C_RESET} : ${C_AMARILLO}No eres root — ejecuta:${C_RESET} ${C_VERDE}sudo -i${C_RESET}"
 else
-    center "${C_ROJO}${BOLD}ð Usuario${C_RESET}   : ${C_BLANCO}root${C_RESET}"
-    center "${C_ROJO}${BOLD}â¡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}menu${C_RESET}"
+    center "${C_DORADO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}${BOLD}root${C_RESET}"
+    center "${C_AMARILLO}${BOLD}⚡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}${BOLD}menu${C_RESET}"
 fi
 center ""
 
-hr "â"
+hr "═"
 center ""
-center "${C_VERDE}${BOLD}â¨  Gracias por usar nuestros servicios  â¨${C_RESET}"
-# Sello de marca no condicional.
-_SELLO_OK=0
-if [[ "$_SELLO_OK" == "1" ]]; then
-    center "${C_ROJO}${BOLD}ð¡ï¸  SISTEMA PROTEGIDO POR MAXINET NETWORK  ð¡ï¸${C_RESET}"
-else
-    center "${C_GRIS}â  Acceso autorizado. Conexiones monitoreadas las 24 horas.  â${C_RESET}"
-fi
-center "${C_GRIS}â  Powered by Maxinet Network â Uso autorizado  â${C_RESET}"
+center "${C_VERDE}${BOLD}✨  Gracias por usar nuestros servicios  ✨${C_RESET}"
+center "${C_GRIS}─  Acceso autorizado. Conexiones monitoreadas las 24 horas.  ─${C_RESET}"
+center "${C_GRIS}─  Powered by Maxinet Network — Uso autorizado  ─${C_RESET}"
 center ""
-hr "â"
+hr "═"
 printf '\n'

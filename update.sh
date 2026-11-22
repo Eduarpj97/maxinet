@@ -198,6 +198,11 @@ aplicar_update() {
         return 1
     fi
 
+    if [[ -f "$BASE/configs/profile.d/Maxinet-banner.sh" ]]; then
+        cp -f "$BASE/configs/profile.d/Maxinet-banner.sh" /etc/profile.d/Maxinet-banner.sh 2>/dev/null
+        chmod +x /etc/profile.d/Maxinet-banner.sh 2>/dev/null
+    fi
+
     echo -e "${GREEN}  ✅ Actualizacion completada.${RESET}"
     echo ""
     verificar_integridad
