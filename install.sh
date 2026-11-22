@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "2.2.0")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "2.4.0")}"
             shift
             ;;
         --limpiar-solo)
@@ -3602,7 +3602,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.2
+# Maxinet Network - Premium Welcome Banner v2.4
 # Diseño profesional - alineación exacta de panel
 #==================================================
 [[ $- != *i* ]] && return
@@ -3736,19 +3736,16 @@ p_fila() {
 # ==================================================
 #  BANNER PRINCIPAL
 # ==================================================
-# ==================================================
-#  BANNER PRINCIPAL
-# ==================================================
 hr "═"
 center ""
-center "${C_CIAN2}${BOLD}    ███╗   ███╗ ██████╗ ██╗  ██╗ █████╗ ██████╗ ${C_RESET}"
-center "${C_CIAN}${BOLD}    ████╗ ████║██╔═══██╗██║  ██║██╔══██╗██╔══██╗${C_RESET}"
-center "${C_CIAN}${BOLD}    ██╔████╔██║██║   ██║███████║███████║██████╔╝${C_RESET}"
-center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██║   ██║██╔══██║██╔══██║██╔═══╝ ${C_RESET}"
-center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║╚██████╔╝██║  ██║██║  ██║██║     ${C_RESET}"
-center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ${C_RESET}"
+center "${C_CIAN2}${BOLD}    ███╗   ███╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗${C_RESET}"
+center "${C_CIAN}${BOLD}    ████╗ ████║██╔══██╗╚██╗██╔╝██║████╗  ██║██╔════╝╚══██╔══╝${C_RESET}"
+center "${C_CIAN}${BOLD}    ██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   ${C_RESET}"
+center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   ${C_RESET}"
+center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   ${C_RESET}"
+center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ${C_RESET}"
 center ""
-center "${C_DORADO}${BOLD}    ──  ◆  MAXINET  ◆  ──  ${C_RESET}"
+center "${C_DORADO}${BOLD}    ──  ◆  MAXINET NETWORK  ◆  ──  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
 center ""
 hr "═"
@@ -3837,7 +3834,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.2  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.4  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>

@@ -1,7 +1,7 @@
-=== DATE ===
+﻿=== DATE ===
 Sun Nov 22 00:53:40 UTC 2026
 === UNAME ===
-Linux movivip-ch 7.0.0-1016-oracle #18~24.04.1-Ubuntu SMP PREEMPT Thu Oct 29 18:52:11 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
+Linux maxinet-ch 7.0.0-1016-oracle #18~24.04.1-Ubuntu SMP PREEMPT Thu Oct 29 18:52:11 UTC 2026 aarch64 aarch64 aarch64 GNU/Linux
 === OS ===
 PRETTY_NAME="Ubuntu 24.04.5 LTS"
 NAME="Ubuntu"
@@ -19,13 +19,13 @@ LOGO=ubuntu-logo
 === ARCH ===
 arm64
 === CRONTAB ROOT ===
-*/30 * * * * bash /etc/movivip/scripts/auto-cleanup.sh >/dev/null 2>&1
-0 3 */2 * * bash /etc/movivip/auto-update.sh >/dev/null 2>&1
-* * * * * bash /etc/movivip/herramientas/network_snapshot.sh >/dev/null 2>&1
-*/2 * * * * bash /etc/movivip/usuarios/online.sh --quiet >/dev/null 2>&1
+*/30 * * * * bash /etc/maxinet/scripts/auto-cleanup.sh >/dev/null 2>&1
+0 3 */2 * * bash /etc/maxinet/auto-update.sh >/dev/null 2>&1
+* * * * * bash /etc/maxinet/herramientas/network_snapshot.sh >/dev/null 2>&1
+*/2 * * * * bash /etc/maxinet/usuarios/online.sh --quiet >/dev/null 2>&1
 * * * * * /usr/local/bin/zivpn-expira.sh
 * * * * * /usr/local/bin/zivpn-limite.sh
-* * * * * bash /etc/movivip/scripts/expira-exacta.sh >/dev/null 2>&1
+* * * * * bash /etc/maxinet/scripts/expira-exacta.sh >/dev/null 2>&1
 === SERVICES ENABLED ===
 snap-core18-3002.mount                                     enabled enabled
 snap-oracle\x2dcloud\x2dagent-125.mount                    enabled enabled
@@ -51,8 +51,8 @@ hysteria1-server.service                                   enabled enabled
 iscsid.service                                             enabled enabled
 keyboard-setup.service                                     enabled enabled
 lvm2-monitor.service                                       enabled enabled
-movivip-boot-network.service                               enabled enabled
-movivip-net-state.service                                  enabled enabled
+maxinet-boot-network.service                               enabled enabled
+maxinet-net-state.service                                  enabled enabled
 netfilter-persistent.service                               enabled enabled
 networkd-dispatcher.service                                enabled enabled
 nvmefc-boot-connections.service                            enabled enabled
@@ -278,204 +278,204 @@ wget
 whois
 xfsprogs
 zip
-=== MOVIVIP FILES ===
-3	/etc/movivip/.current_lang
-309	/etc/movivip/.gitattributes
-202	/etc/movivip/.gitignore
-1540	/etc/movivip/.movivip-check.sh
-8033	/etc/movivip/DEPLOY-v5.2.md
-13	/etc/movivip/activaciones/064ff8e75227446f.ip
-65	/etc/movivip/activaciones/064ff8e75227446f.key
-11	/etc/movivip/activaciones/064ff8e75227446f.timestamp
-7638	/etc/movivip/auto-update.sh
-2081	/etc/movivip/backup/config.conf.20260925-093917
-1966	/etc/movivip/backup/config.conf.20261021-213644
-17	/etc/movivip/backup/domain.20261021-213644
-3654457	/etc/movivip/backups/auto_20260927_030004.tar.gz
-6642	/etc/movivip/banner.svg
-1198672	/etc/movivip/bin/apiAccess
-2739728	/etc/movivip/bin/libstdc++.so.6.0.35
-15001	/etc/movivip/cambiar-licencia.sh
-13302	/etc/movivip/check-licencia.sh
-2014	/etc/movivip/config.conf
-0	/etc/movivip/ddos/puertos.conf
-211	/etc/movivip/descifrar-secrets.sh
-2442	/etc/movivip/functions/pkg.sh
-12078	/etc/movivip/gate/validar-licencia.sh
-3357	/etc/movivip/herramientas/archivoonline.sh
-6616	/etc/movivip/herramientas/auditoria.sh
-2921	/etc/movivip/herramientas/blockads.sh
-2864	/etc/movivip/herramientas/blocktorrent.sh
-105335	/etc/movivip/herramientas/bot-generador.sh
-9133	/etc/movivip/herramientas/change-domain.sh
-4301	/etc/movivip/herramientas/checkuser.sh
-18761	/etc/movivip/herramientas/ddos.sh
-349	/etc/movivip/herramientas/descifrar-secrets.sh
-3418	/etc/movivip/herramientas/detalles.sh
-8391	/etc/movivip/herramientas/env-bot-sync.sh
-8035	/etc/movivip/herramientas/fail2ban.sh
-7870	/etc/movivip/herramientas/filebrowser.sh
-18079	/etc/movivip/herramientas/firewall.sh
-11402	/etc/movivip/herramientas/generador-licencias.sh
-9336	/etc/movivip/herramientas/hwid_quota_monitor.sh
-5942	/etc/movivip/herramientas/instalar_apiaccess.sh
-10431	/etc/movivip/herramientas/menu.sh
-6287	/etc/movivip/herramientas/monitorlive.sh
-621	/etc/movivip/herramientas/movivip-bot-generador.service
-7607	/etc/movivip/herramientas/network_snapshot.sh
-10243	/etc/movivip/herramientas/network_traffic.sh
-3948	/etc/movivip/herramientas/notify-activation.sh
-3059	/etc/movivip/herramientas/openports.sh
-22381	/etc/movivip/herramientas/optimizar.sh
-1456	/etc/movivip/herramientas/reiniciar.sh
-3649	/etc/movivip/herramientas/rootpass.sh
-5658	/etc/movivip/herramientas/scanner.sh
-9821	/etc/movivip/herramientas/seguridad.sh
-9991	/etc/movivip/herramientas/setup-bot-generador.sh
-6034	/etc/movivip/herramientas/speedtest.sh
-204670	/etc/movivip/install.sh
-271	/etc/movivip/languages/af.dict
-9739	/etc/movivip/languages/af.sh
-319	/etc/movivip/languages/ar.dict
-10495	/etc/movivip/languages/ar.sh
-32995	/etc/movivip/languages/de.dict
-9601	/etc/movivip/languages/de.sh
-32903	/etc/movivip/languages/en.dict
-9608	/etc/movivip/languages/en.sh
-10159	/etc/movivip/languages/es.sh
-33097	/etc/movivip/languages/fr.dict
-9661	/etc/movivip/languages/fr.sh
-294	/etc/movivip/languages/hi.dict
-15426	/etc/movivip/languages/hi.sh
-9194	/etc/movivip/languages/lang.sh
-55598	/etc/movivip/languages/protocols.sh
-31805	/etc/movivip/languages/pt.dict
-9548	/etc/movivip/languages/pt.sh
-271	/etc/movivip/languages/sw.dict
-9461	/etc/movivip/languages/sw.sh
-304	/etc/movivip/languages/zh.dict
-9112	/etc/movivip/languages/zh.sh
-152	/etc/movivip/launchers/herramientas
-133	/etc/movivip/launchers/menu
-148	/etc/movivip/launchers/protocolos
-144	/etc/movivip/launchers/usuarios
-3633	/etc/movivip/lib/anim.sh
-1498	/etc/movivip/lib/banners/issue_net_3d.html
-7784	/etc/movivip/lib/delivery.sh
-3307	/etc/movivip/lib/duracion.sh
-2729	/etc/movivip/lib/firebase-plan.sh
-1073	/etc/movivip/lib/fixcrlf.sh
-685	/etc/movivip/lib/launch.sh
-2533	/etc/movivip/lib/licgate.sh
-27788	/etc/movivip/lib/nav.sh
-9009	/etc/movivip/lib/ui.sh
-249	/etc/movivip/licencia.conf
-309	/etc/movivip/licencia.conf.bak-20260916-211329
-4475	/etc/movivip/logs/auto-update.log
-18616	/etc/movivip/logs/chkrootkit-20260924.log
-454334	/etc/movivip/logs/lynis-20260924.log
-53736	/etc/movivip/menu.sh
-3082	/etc/movivip/payload/payloads/pdirect.py
-5730	/etc/movivip/payload/payloads/pget.py
-3714	/etc/movivip/payload/payloads/popen.py
-3982	/etc/movivip/payload/payloads/ppriv.py
-3754	/etc/movivip/payload/payloads/ppub.py
-57	/etc/movivip/payload/pwd.pwd
-8439	/etc/movivip/protocolos/XRAY-VLESS-TROJAN.md
-7470	/etc/movivip/protocolos/badvpn.sh
-20895	/etc/movivip/protocolos/bhttp.sh
-9512411	/etc/movivip/protocolos/bhttp/bhttp-server-linux-amd64
-37471	/etc/movivip/protocolos/bot.sh
-33246	/etc/movivip/protocolos/bots_extract/admin_bot.py
-4838	/etc/movivip/protocolos/bots_extract/config.py
-7694	/etc/movivip/protocolos/bots_extract/database.py
-39602	/etc/movivip/protocolos/bots_extract/notif_bot.py
-4898	/etc/movivip/protocolos/bots_extract/notif_extras.py
-6530	/etc/movivip/protocolos/bots_extract/notif_extras_ui.py
-1306	/etc/movivip/protocolos/bots_extract/notif_integration.py
-5374	/etc/movivip/protocolos/bots_extract/ssh_utils.py
-16770	/etc/movivip/protocolos/btun.sh
-5044144	/etc/movivip/protocolos/btun/btun-server-linux-amd64
-4115	/etc/movivip/protocolos/checkuser.sh
-4264088	/etc/movivip/protocolos/dnstt/dns-server-amd64
-14979	/etc/movivip/protocolos/dropbear.sh
-23319	/etc/movivip/protocolos/dtunnel.sh
-16275	/etc/movivip/protocolos/hcr.sh
-20828	/etc/movivip/protocolos/hysteria.sh
-12469	/etc/movivip/protocolos/menu.sh
-878	/etc/movivip/protocolos/onlineapp
-3124	/etc/movivip/protocolos/onlineapp.sh
-3325	/etc/movivip/protocolos/openssh.sh
-21354	/etc/movivip/protocolos/openvpn.sh
-16506	/etc/movivip/protocolos/payload.sh
-3082	/etc/movivip/protocolos/payload/pdirect.py
-5730	/etc/movivip/protocolos/payload/pget.py
-3714	/etc/movivip/protocolos/payload/popen.py
-3982	/etc/movivip/protocolos/payload/ppriv.py
-3754	/etc/movivip/protocolos/payload/ppub.py
-13946	/etc/movivip/protocolos/shadowsocks.sh
-37987	/etc/movivip/protocolos/slowdns.sh
-16259	/etc/movivip/protocolos/socks5.sh
-7843	/etc/movivip/protocolos/squid.sh
-24759	/etc/movivip/protocolos/ssl.sh
-4462	/etc/movivip/protocolos/systemdns.sh
-7965	/etc/movivip/protocolos/udpcustom.sh
-82480	/etc/movivip/protocolos/v2ray.sh
-31136	/etc/movivip/protocolos/web.sh
-453297	/etc/movivip/protocolos/web/index.obf.html
-123885	/etc/movivip/protocolos/web/main.py
-6945	/etc/movivip/protocolos/webmin.sh
-15961	/etc/movivip/protocolos/wireguard.sh
-22366	/etc/movivip/protocolos/xhttp.sh
-9182808	/etc/movivip/protocolos/xhttp/xhttp-server-linux-amd64
-22281	/etc/movivip/protocolos/xui.sh
-35510	/etc/movivip/protocolos/zipvpn.sh
-669	/etc/movivip/scripts/auto-cleanup.sh
-945	/etc/movivip/scripts/boot-network.sh
-3777	/etc/movivip/scripts/expira-exacta.sh
-3444	/etc/movivip/servidor/nginx/README.md
-1459	/etc/movivip/servidor/nginx/conf.d/botweb.conf.bak_dup
-1469	/etc/movivip/servidor/nginx/fix-miniapp-nginx.sh
-1316	/etc/movivip/servidor/nginx/sites-available/movivip-miniapp
-16	/etc/movivip/sistema/.pub_ip
-0	/etc/movivip/sistema/consumo_snapshots.conf
-14	/etc/movivip/sistema/consumo_usuarios.conf
-132678	/etc/movivip/sistema/expira-exacta.log
-204822	/etc/movivip/sistema/expira-exacta.log.1
-0	/etc/movivip/sistema/expiraciones_exactas.conf
-39	/etc/movivip/sistema/limites_conexiones.conf
-39	/etc/movivip/sistema/limites_consumo.conf
-351	/etc/movivip/sistema/network_state.conf
-17	/etc/movivip/sistema/suspendidos.conf
-0	/etc/movivip/sistema/xray_limites.conf
-0	/etc/movivip/sistema/xray_ports.conf
-3228	/etc/movivip/tools/vps-deploy-v54.sh
-2313	/etc/movivip/tools/vps-deploy-v55.sh
-2756	/etc/movivip/tools/vps-finish-v54.sh
-2766	/etc/movivip/tools/vps-repair-v52.sh
-1126	/etc/movivip/tools/vps-test-v53.sh
-1534	/etc/movivip/tools/vps-test-v54.sh
-14799	/etc/movivip/update.sh
-11039	/etc/movivip/updater.sh
-30019	/etc/movivip/usuarios/account.sh
-29429	/etc/movivip/usuarios/add.sh
-13114	/etc/movivip/usuarios/add_hwid.sh
-3793	/etc/movivip/usuarios/backup.sh
-15914	/etc/movivip/usuarios/banner.sh
-3936	/etc/movivip/usuarios/block.sh
-7787	/etc/movivip/usuarios/change_hwid.sh
-3684	/etc/movivip/usuarios/delete.sh
-13497	/etc/movivip/usuarios/edit.sh
-2822	/etc/movivip/usuarios/hwid_bloqueos.sh
-1336	/etc/movivip/usuarios/hwid_derive.sh
-7336	/etc/movivip/usuarios/hwid_limite.sh
-4384	/etc/movivip/usuarios/hwid_list.sh
-7731	/etc/movivip/usuarios/hwid_renovar.sh
-3879	/etc/movivip/usuarios/list.sh
-3928	/etc/movivip/usuarios/log.sh
-2783	/etc/movivip/usuarios/menu.sh
-33024	/etc/movivip/usuarios/online.sh
-6367	/etc/movivip/usuarios/reactivar.sh
-36390	/etc/movivip/usuarios/zipvpn.sh
-10694	/etc/movivip/validar-licencia.sh
-6	/etc/movivip/version.txt
+=== MAXINET FILES ===
+3	/etc/maxinet/.current_lang
+309	/etc/maxinet/.gitattributes
+202	/etc/maxinet/.gitignore
+1540	/etc/maxinet/.maxinet-check.sh
+8033	/etc/maxinet/DEPLOY-v5.2.md
+13	/etc/maxinet/activaciones/064ff8e75227446f.ip
+65	/etc/maxinet/activaciones/064ff8e75227446f.key
+11	/etc/maxinet/activaciones/064ff8e75227446f.timestamp
+7638	/etc/maxinet/auto-update.sh
+2081	/etc/maxinet/backup/config.conf.20260925-093917
+1966	/etc/maxinet/backup/config.conf.20261021-213644
+17	/etc/maxinet/backup/domain.20261021-213644
+3654457	/etc/maxinet/backups/auto_20260927_030004.tar.gz
+6642	/etc/maxinet/banner.svg
+1198672	/etc/maxinet/bin/apiAccess
+2739728	/etc/maxinet/bin/libstdc++.so.6.0.35
+15001	/etc/maxinet/cambiar-licencia.sh
+13302	/etc/maxinet/check-licencia.sh
+2014	/etc/maxinet/config.conf
+0	/etc/maxinet/ddos/puertos.conf
+211	/etc/maxinet/descifrar-secrets.sh
+2442	/etc/maxinet/functions/pkg.sh
+12078	/etc/maxinet/gate/validar-licencia.sh
+3357	/etc/maxinet/herramientas/archivoonline.sh
+6616	/etc/maxinet/herramientas/auditoria.sh
+2921	/etc/maxinet/herramientas/blockads.sh
+2864	/etc/maxinet/herramientas/blocktorrent.sh
+105335	/etc/maxinet/herramientas/bot-generador.sh
+9133	/etc/maxinet/herramientas/change-domain.sh
+4301	/etc/maxinet/herramientas/checkuser.sh
+18761	/etc/maxinet/herramientas/ddos.sh
+349	/etc/maxinet/herramientas/descifrar-secrets.sh
+3418	/etc/maxinet/herramientas/detalles.sh
+8391	/etc/maxinet/herramientas/env-bot-sync.sh
+8035	/etc/maxinet/herramientas/fail2ban.sh
+7870	/etc/maxinet/herramientas/filebrowser.sh
+18079	/etc/maxinet/herramientas/firewall.sh
+11402	/etc/maxinet/herramientas/generador-licencias.sh
+9336	/etc/maxinet/herramientas/hwid_quota_monitor.sh
+5942	/etc/maxinet/herramientas/instalar_apiaccess.sh
+10431	/etc/maxinet/herramientas/menu.sh
+6287	/etc/maxinet/herramientas/monitorlive.sh
+621	/etc/maxinet/herramientas/maxinet-bot-generador.service
+7607	/etc/maxinet/herramientas/network_snapshot.sh
+10243	/etc/maxinet/herramientas/network_traffic.sh
+3948	/etc/maxinet/herramientas/notify-activation.sh
+3059	/etc/maxinet/herramientas/openports.sh
+22381	/etc/maxinet/herramientas/optimizar.sh
+1456	/etc/maxinet/herramientas/reiniciar.sh
+3649	/etc/maxinet/herramientas/rootpass.sh
+5658	/etc/maxinet/herramientas/scanner.sh
+9821	/etc/maxinet/herramientas/seguridad.sh
+9991	/etc/maxinet/herramientas/setup-bot-generador.sh
+6034	/etc/maxinet/herramientas/speedtest.sh
+204670	/etc/maxinet/install.sh
+271	/etc/maxinet/languages/af.dict
+9739	/etc/maxinet/languages/af.sh
+319	/etc/maxinet/languages/ar.dict
+10495	/etc/maxinet/languages/ar.sh
+32995	/etc/maxinet/languages/de.dict
+9601	/etc/maxinet/languages/de.sh
+32903	/etc/maxinet/languages/en.dict
+9608	/etc/maxinet/languages/en.sh
+10159	/etc/maxinet/languages/es.sh
+33097	/etc/maxinet/languages/fr.dict
+9661	/etc/maxinet/languages/fr.sh
+294	/etc/maxinet/languages/hi.dict
+15426	/etc/maxinet/languages/hi.sh
+9194	/etc/maxinet/languages/lang.sh
+55598	/etc/maxinet/languages/protocols.sh
+31805	/etc/maxinet/languages/pt.dict
+9548	/etc/maxinet/languages/pt.sh
+271	/etc/maxinet/languages/sw.dict
+9461	/etc/maxinet/languages/sw.sh
+304	/etc/maxinet/languages/zh.dict
+9112	/etc/maxinet/languages/zh.sh
+152	/etc/maxinet/launchers/herramientas
+133	/etc/maxinet/launchers/menu
+148	/etc/maxinet/launchers/protocolos
+144	/etc/maxinet/launchers/usuarios
+3633	/etc/maxinet/lib/anim.sh
+1498	/etc/maxinet/lib/banners/issue_net_3d.html
+7784	/etc/maxinet/lib/delivery.sh
+3307	/etc/maxinet/lib/duracion.sh
+2729	/etc/maxinet/lib/firebase-plan.sh
+1073	/etc/maxinet/lib/fixcrlf.sh
+685	/etc/maxinet/lib/launch.sh
+2533	/etc/maxinet/lib/licgate.sh
+27788	/etc/maxinet/lib/nav.sh
+9009	/etc/maxinet/lib/ui.sh
+249	/etc/maxinet/licencia.conf
+309	/etc/maxinet/licencia.conf.bak-20260916-211329
+4475	/etc/maxinet/logs/auto-update.log
+18616	/etc/maxinet/logs/chkrootkit-20260924.log
+454334	/etc/maxinet/logs/lynis-20260924.log
+53736	/etc/maxinet/menu.sh
+3082	/etc/maxinet/payload/payloads/pdirect.py
+5730	/etc/maxinet/payload/payloads/pget.py
+3714	/etc/maxinet/payload/payloads/popen.py
+3982	/etc/maxinet/payload/payloads/ppriv.py
+3754	/etc/maxinet/payload/payloads/ppub.py
+57	/etc/maxinet/payload/pwd.pwd
+8439	/etc/maxinet/protocolos/XRAY-VLESS-TROJAN.md
+7470	/etc/maxinet/protocolos/badvpn.sh
+20895	/etc/maxinet/protocolos/bhttp.sh
+9512411	/etc/maxinet/protocolos/bhttp/bhttp-server-linux-amd64
+37471	/etc/maxinet/protocolos/bot.sh
+33246	/etc/maxinet/protocolos/bots_extract/admin_bot.py
+4838	/etc/maxinet/protocolos/bots_extract/config.py
+7694	/etc/maxinet/protocolos/bots_extract/database.py
+39602	/etc/maxinet/protocolos/bots_extract/notif_bot.py
+4898	/etc/maxinet/protocolos/bots_extract/notif_extras.py
+6530	/etc/maxinet/protocolos/bots_extract/notif_extras_ui.py
+1306	/etc/maxinet/protocolos/bots_extract/notif_integration.py
+5374	/etc/maxinet/protocolos/bots_extract/ssh_utils.py
+16770	/etc/maxinet/protocolos/btun.sh
+5044144	/etc/maxinet/protocolos/btun/btun-server-linux-amd64
+4115	/etc/maxinet/protocolos/checkuser.sh
+4264088	/etc/maxinet/protocolos/dnstt/dns-server-amd64
+14979	/etc/maxinet/protocolos/dropbear.sh
+23319	/etc/maxinet/protocolos/dtunnel.sh
+16275	/etc/maxinet/protocolos/hcr.sh
+20828	/etc/maxinet/protocolos/hysteria.sh
+12469	/etc/maxinet/protocolos/menu.sh
+878	/etc/maxinet/protocolos/onlineapp
+3124	/etc/maxinet/protocolos/onlineapp.sh
+3325	/etc/maxinet/protocolos/openssh.sh
+21354	/etc/maxinet/protocolos/openvpn.sh
+16506	/etc/maxinet/protocolos/payload.sh
+3082	/etc/maxinet/protocolos/payload/pdirect.py
+5730	/etc/maxinet/protocolos/payload/pget.py
+3714	/etc/maxinet/protocolos/payload/popen.py
+3982	/etc/maxinet/protocolos/payload/ppriv.py
+3754	/etc/maxinet/protocolos/payload/ppub.py
+13946	/etc/maxinet/protocolos/shadowsocks.sh
+37987	/etc/maxinet/protocolos/slowdns.sh
+16259	/etc/maxinet/protocolos/socks5.sh
+7843	/etc/maxinet/protocolos/squid.sh
+24759	/etc/maxinet/protocolos/ssl.sh
+4462	/etc/maxinet/protocolos/systemdns.sh
+7965	/etc/maxinet/protocolos/udpcustom.sh
+82480	/etc/maxinet/protocolos/v2ray.sh
+31136	/etc/maxinet/protocolos/web.sh
+453297	/etc/maxinet/protocolos/web/index.obf.html
+123885	/etc/maxinet/protocolos/web/main.py
+6945	/etc/maxinet/protocolos/webmin.sh
+15961	/etc/maxinet/protocolos/wireguard.sh
+22366	/etc/maxinet/protocolos/xhttp.sh
+9182808	/etc/maxinet/protocolos/xhttp/xhttp-server-linux-amd64
+22281	/etc/maxinet/protocolos/xui.sh
+35510	/etc/maxinet/protocolos/zipvpn.sh
+669	/etc/maxinet/scripts/auto-cleanup.sh
+945	/etc/maxinet/scripts/boot-network.sh
+3777	/etc/maxinet/scripts/expira-exacta.sh
+3444	/etc/maxinet/servidor/nginx/README.md
+1459	/etc/maxinet/servidor/nginx/conf.d/botweb.conf.bak_dup
+1469	/etc/maxinet/servidor/nginx/fix-miniapp-nginx.sh
+1316	/etc/maxinet/servidor/nginx/sites-available/maxinet-miniapp
+16	/etc/maxinet/sistema/.pub_ip
+0	/etc/maxinet/sistema/consumo_snapshots.conf
+14	/etc/maxinet/sistema/consumo_usuarios.conf
+132678	/etc/maxinet/sistema/expira-exacta.log
+204822	/etc/maxinet/sistema/expira-exacta.log.1
+0	/etc/maxinet/sistema/expiraciones_exactas.conf
+39	/etc/maxinet/sistema/limites_conexiones.conf
+39	/etc/maxinet/sistema/limites_consumo.conf
+351	/etc/maxinet/sistema/network_state.conf
+17	/etc/maxinet/sistema/suspendidos.conf
+0	/etc/maxinet/sistema/xray_limites.conf
+0	/etc/maxinet/sistema/xray_ports.conf
+3228	/etc/maxinet/tools/vps-deploy-v54.sh
+2313	/etc/maxinet/tools/vps-deploy-v55.sh
+2756	/etc/maxinet/tools/vps-finish-v54.sh
+2766	/etc/maxinet/tools/vps-repair-v52.sh
+1126	/etc/maxinet/tools/vps-test-v53.sh
+1534	/etc/maxinet/tools/vps-test-v54.sh
+14799	/etc/maxinet/update.sh
+11039	/etc/maxinet/updater.sh
+30019	/etc/maxinet/usuarios/account.sh
+29429	/etc/maxinet/usuarios/add.sh
+13114	/etc/maxinet/usuarios/add_hwid.sh
+3793	/etc/maxinet/usuarios/backup.sh
+15914	/etc/maxinet/usuarios/banner.sh
+3936	/etc/maxinet/usuarios/block.sh
+7787	/etc/maxinet/usuarios/change_hwid.sh
+3684	/etc/maxinet/usuarios/delete.sh
+13497	/etc/maxinet/usuarios/edit.sh
+2822	/etc/maxinet/usuarios/hwid_bloqueos.sh
+1336	/etc/maxinet/usuarios/hwid_derive.sh
+7336	/etc/maxinet/usuarios/hwid_limite.sh
+4384	/etc/maxinet/usuarios/hwid_list.sh
+7731	/etc/maxinet/usuarios/hwid_renovar.sh
+3879	/etc/maxinet/usuarios/list.sh
+3928	/etc/maxinet/usuarios/log.sh
+2783	/etc/maxinet/usuarios/menu.sh
+33024	/etc/maxinet/usuarios/online.sh
+6367	/etc/maxinet/usuarios/reactivar.sh
+36390	/etc/maxinet/usuarios/zipvpn.sh
+10694	/etc/maxinet/validar-licencia.sh
+6	/etc/maxinet/version.txt

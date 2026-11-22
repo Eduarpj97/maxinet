@@ -9,7 +9,7 @@
 #   • Paneles  ┌─┐ │ └─┘  morado con filas alineadas
 #   • Footer   ｡ﾟﾟ･｡  ⋆｡˚⊱ · protected · powered by ⋆
 #
-# v2.2 — 3 técnicas nuevas (aprobadas para superar referencias estilo
+# v2.4 — 3 técnicas nuevas (aprobadas para superar referencias estilo
 # Chumo SIN copiarlas, con identidad 100% Maxinet):
 #   1) Gradiente por línea  → mv_grad_txt / mv_grad_rainbow / mv_banner_3d
 #      (arcoíris real por carácter, SIN depender de lolcat/figlet)
@@ -20,7 +20,7 @@
 #      (5 variantes: identidad propia, no msg-bar de Chumo)
 #
 # Uso:  source "$BASE/lib/ui.sh"
-#   mv_header "TITULO" "Subtitulo" "v2.2"
+#   mv_header "TITULO" "Subtitulo" "v2.4"
 #   mv_section "💻 SISTEMA"
 #   mv_kv "IP" "$IP"
 #   mv_pill "ON" "Cloudflare"
@@ -34,7 +34,7 @@
 [[ -n "$MV_UI_LOADED" ]] && return 0
 MV_UI_LOADED=1
 
-# ── Paleta PREMIUM (ANSI-256, igual que banner v2.2) ──
+# ── Paleta PREMIUM (ANSI-256, igual que banner v2.4) ──
 # Importante: usar $'...' → byte ESC real, funciona con printf %s/%b, echo, etc.
 MV_R=$'\e[0m'
 MV_RED=$'\e[38;5;203m'; MV_GRN=$'\e[38;5;82m'; MV_GLD=$'\e[38;5;220m'; MV_YLW=$'\e[38;5;226m'
@@ -95,18 +95,18 @@ mv_grad_rainbow(){
     printf "%b%s%b" "$out" "" "$MV_R"
 }
 
-# ── Logo 3D oficial con gradiente por LÍNEA (v2.2) ──
+# ── Logo 3D oficial con gradiente por LÍNEA (v2.4) ──
 # Cada línea del logo recibe un gradiente distinto (identidad Maxinet,
 # superior al figlet|lolcat plano de Chumo: aquí cada letra se funde).
 # mv_banner_3d [título]  → imprime el logo + título opcional
 mv_banner_3d(){
     local titulo="${1:-}" line
-    line=$(mv_grad_txt "    ███╗   ███╗ ██████╗ ██╗  ██╗ █████╗ ██████╗ " 51 45 1); mv_center "$line"
-    line=$(mv_grad_txt "    ████╗ ████║██╔═══██╗██║  ██║██╔══██╗██╔══██╗" 45 39 1); mv_center "$line"
-    line=$(mv_grad_txt "    ██╔████╔██║██║   ██║███████║███████║██████╔╝" 39 33 1); mv_center "$line"
-    line=$(mv_grad_txt "    ██║╚██╔╝██║██║   ██║██╔══██║██╔══██║██╔═══╝ " 33 27 1); mv_center "$line"
-    line=$(mv_grad_txt "    ██║ ╚═╝ ██║╚██████╔╝██║  ██║██║  ██║██║     " 27 21 1); mv_center "$line"
-    line=$(mv_grad_txt "    ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     " 21 15 1); mv_center "$line"
+    line=$(mv_grad_txt "    ███╗   ███╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗" 51 45 1); mv_center "$line"
+    line=$(mv_grad_txt "    ████╗ ████║██╔══██╗╚██╗██╔╝██║████╗  ██║██╔════╝╚══██╔══╝" 45 39 1); mv_center "$line"
+    line=$(mv_grad_txt "    ██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   " 39 33 1); mv_center "$line"
+    line=$(mv_grad_txt "    ██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   " 33 27 1); mv_center "$line"
+    line=$(mv_grad_txt "    ██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   " 27 21 1); mv_center "$line"
+    line=$(mv_grad_txt "    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   " 21 15 1); mv_center "$line"
     if [[ -n "$titulo" ]]; then
         mv_grad_rainbow "◆  ${titulo}  ◆" 1; echo ""
     fi
@@ -314,7 +314,7 @@ mv_signature(){
 
 # ── Header principal: ═══ + ◆ título ◆ + ═══ (estilo banner) ──
 mv_header(){
-    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.2}"
+    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.4}"
     mv_line
     mv_center "${MV_GLD}◆${MV_R}  ${MV_BLD}${MV_WHT}${TITLE}${MV_R}  ${MV_DIM}[${MV_R}${MV_CYN}${VER}${MV_R}${MV_DIM}]${MV_R}  ${MV_GLD}◆${MV_R}"
     [[ -n "$SUB" ]] && mv_center "${MV_YLW}${SUB}${MV_R}"
@@ -351,7 +351,7 @@ maxinet_sub_header(){
 # ── Mini-logo 3D MAXINET compacto (estilo banner SSH, centrado) ──
 # Reutilizable en TODOS los menús: banner_maxinet "TÍTULO" (o sin título)
 # Logo + título centrados; el llamador decide las líneas de marco ════.
-# v2.2: banner_maxinet usa el GRADIENTE por línea (mv_banner_3d).
+# v2.4: banner_maxinet usa el GRADIENTE por línea (mv_banner_3d).
 banner_maxinet(){
     local titulo="${1:-}"
     mv_banner_3d "$titulo"
@@ -432,7 +432,7 @@ mv_prow(){
         "$MV_MAG" "$icon" "$label" "$val" "$pad" "" "$MV_MAG" "$MV_R"
 }
 
-# ── Fila con BARRAS DE PROGRESO en color (v2.2 TÉCNICA 2) ──
+# ── Fila con BARRAS DE PROGRESO en color (v2.4 TÉCNICA 2) ──
 # Uso: mv_prow_bars "RAM" "56" "CPU" "88"
 #   │ RAM ▮▮▮▮░░░░░░░░ 56%   CPU ▮▮▮▮▮▮▮▮░░ 88%  │
 # Difiere de mv_prow: calcula el padding con mv_w (limpia ANSI),

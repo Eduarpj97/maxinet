@@ -87,7 +87,7 @@ os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(f"{PANEL_DIR}/static", exist_ok=True)
 
 APP_NAME = "Maxinet Web Panel"
-VERSION = "2.0.0"
+VERSION = "2.4.0"
 
 # ═══════════════════════════════════════════════════════════
 # LOG + HISTORIAL

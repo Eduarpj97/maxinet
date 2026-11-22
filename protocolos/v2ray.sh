@@ -2244,7 +2244,7 @@ if [[ -f "$XRAY_LOG" ]]; then
     }' "$XRAY_LOG" | sort -u | wc -l)
 fi
 
-mv_header "$(trx '🚀 Xray Manager v2.2')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.2""
+mv_header "$(trx '🚀 Xray Manager v2.4')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.4"
 maxinet_contacts 2>/dev/null || true
 
 echo -e "${CYAN}┌──────────────── INFORMACIÓN ────────────────┐${RESET}"
@@ -2388,7 +2388,7 @@ vmess_menu() {
 while true
 do
 clear
-mv_header "$(trx '🚀 Xray Manager v2.2')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.2""
+mv_header "$(trx '🚀 Xray Manager v2.4')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.4"
 maxinet_contacts 2>/dev/null || true
 
 LBL=("$(trx 'Crear Usuario VMess')" "$(trx 'Eliminar Usuario')" "$(trx 'Listar Usuarios')" "$(trx 'Mostrar Cuenta')" "$(trx 'Información VMess')" "$(trx 'Exportar Link')" "$(trx 'Usuarios Online')" "$(trx 'Consumo y Límites')" "$(trx 'Reactivar Suspendido')")
@@ -2423,7 +2423,7 @@ vless_menu() {
 while true
 do
 clear
-mv_header "$(trx '🚀 Xray Manager v2.2')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.2""
+mv_header "$(trx '🚀 Xray Manager v2.4')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.4"
 maxinet_contacts 2>/dev/null || true
 
 LBL=("$(trx 'Crear Usuario VLESS')" "$(trx 'Eliminar Usuario')" "$(trx 'Listar Usuarios')" "$(trx 'Mostrar Cuenta')" "$(trx 'Información VLESS')" "$(trx 'Exportar Link')" "$(trx 'Usuarios Online')" "$(trx 'Consumo y Límites')" "$(trx 'Reactivar Suspendido')")
@@ -2458,7 +2458,7 @@ trojan_menu() {
 while true
 do
 clear
-mv_header "$(trx '🚀 Xray Manager v2.2')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.2""
+mv_header "$(trx '🚀 Xray Manager v2.4')" "$(trx 'VMess · VLESS · Trojan en un solo panel')" "v2.4"
 maxinet_contacts 2>/dev/null || true
 
 LBL=("$(trx 'Crear Usuario Trojan')" "$(trx 'Eliminar Usuario')" "$(trx 'Listar Usuarios')" "$(trx 'Mostrar Cuenta')" "$(trx 'Información Trojan')" "$(trx 'Exportar Link')" "$(trx 'Usuarios Online')" "$(trx 'Consumo y Límites')" "$(trx 'Reactivar Suspendido')")

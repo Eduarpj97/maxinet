@@ -147,4 +147,4 @@ Código liberado sin restricciones de licencia. Uso libre.
 
 ---
 
-**Maxinet Network** — Fork limpio de MoviVIP Network v8.2.8
+**Maxinet Network** — Sistema Integral de Gestión de Red y VPN v2.4

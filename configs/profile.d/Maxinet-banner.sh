@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.2
+# Maxinet Network - Premium Welcome Banner v2.4
 # DiseÃ±o profesional - alineaciÃ³n exacta de panel
 #==================================================
 [[ $- != *i* ]] && return
@@ -148,14 +148,14 @@ p_fila() {
 # ==================================================
 hr "═"
 center ""
-center "${C_CIAN2}${BOLD}    ███╗   ███╗ ██████╗ ██╗  ██╗ █████╗ ██████╗ ${C_RESET}"
-center "${C_CIAN}${BOLD}    ████╗ ████║██╔═══██╗██║  ██║██╔══██╗██╔══██╗${C_RESET}"
-center "${C_CIAN}${BOLD}    ██╔████╔██║██║   ██║███████║███████║██████╔╝${C_RESET}"
-center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██║   ██║██╔══██║██╔══██║██╔═══╝ ${C_RESET}"
-center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║╚██████╔╝██║  ██║██║  ██║██║     ${C_RESET}"
-center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ${C_RESET}"
+center "${C_CIAN2}${BOLD}    ███╗   ███╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗${C_RESET}"
+center "${C_CIAN}${BOLD}    ████╗ ████║██╔══██╗╚██╗██╔╝██║████╗  ██║██╔════╝╚══██╔══╝${C_RESET}"
+center "${C_CIAN}${BOLD}    ██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   ${C_RESET}"
+center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   ${C_RESET}"
+center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   ${C_RESET}"
+center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ${C_RESET}"
 center ""
-center "${C_DORADO}${BOLD}    ──  ◆  MAXINET  ◆  ──  ${C_RESET}"
+center "${C_DORADO}${BOLD}    ──  ◆  MAXINET NETWORK  ◆  ──  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
 center ""
 center ""

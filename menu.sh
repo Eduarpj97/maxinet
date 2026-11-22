@@ -4,7 +4,7 @@
 #   MAXINET NETWORK — PREMIUM EDITION v5.5
 #   Panel de Control · Alto Rendimiento y Seguridad Total
 #   Diseño compacto tipo dashboard — 1 pantalla
-#   DESIGN SYSTEM NEBULA v2.2 (gradiente + barras % + separadores)
+#   DESIGN SYSTEM NEBULA v2.4 (gradiente + barras % + separadores)
 #=========================================================
 
 # Auto-fix CRLF from Windows uploads (self-healing)
@@ -106,7 +106,7 @@ status() {
 }
 
 progress_bar() {
-    # v5.5: Si el Design System NEBULA v2.2 está cargado, usa la barra
+    # v5.5: Si el Design System NEBULA v2.4 está cargado, usa la barra
     # con % real (mv_progress). Fallback clásico si no existe ui.sh.
     if command -v mv_progress >/dev/null 2>&1; then
         mv_progress "$1" 100
@@ -423,7 +423,7 @@ UPD_LV=$(tr -d ' \n' < "$BASE/version.txt" 2>/dev/null)
 MV_VER="$(tr -d ' \n\r' < "$BASE/version.txt" 2>/dev/null)"
 MV_VER="${MV_VER%.*}"
 [[ -n "$MV_VER" ]] && VERSION="$MV_VER"
-VERSION="${VERSION:-6.0}"
+VERSION="${VERSION:-2.4}"
 
 if declare -F mv_header >/dev/null 2>&1; then
     clear

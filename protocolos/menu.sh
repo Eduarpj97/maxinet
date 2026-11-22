@@ -28,7 +28,7 @@ source "$BASE/lib/ui.sh" 2>/dev/null || true
 # i18n shim (auto)
 if ! declare -F trx >/dev/null 2>&1; then trx() { printf '%s' "$1"; }; fi
 
-# Paleta premium ANSI-256 (banner oficial v2.2)
+# Paleta premium ANSI-256 (banner oficial v2.4)
 RESET="${MV_R}"; RED="${MV_RED}"; GREEN="${MV_GRN}"; GOLD="${MV_GLD}"; YELLOW="${MV_YLW}"
 BLUE="${MV_BLU}"; MAGENTA="${MV_MAG}"; CYAN="${MV_CYN}"; WHITE="${MV_WHT}"; GRAY="${MV_DIM}"
 
