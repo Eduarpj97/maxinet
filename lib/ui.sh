@@ -5,11 +5,11 @@
 #   • Paleta ANSI-256: azul 39/33 · cian 45/51 · dorado 220 ·
 #     amarillo 226 · morado 201 · naranja 208 · blanco 255
 #   • Línea maestra  ══ azul (ancho completo)
-#   • Header  ◆ M O V I V I P N E T W O R K ◆  (dorado/cian)
+#   • Header  ◆ M A X I N E T N E T W O R K ◆  (dorado/cian)
 #   • Paneles  ┌─┐ │ └─┘  morado con filas alineadas
 #   • Footer   ｡ﾟﾟ･｡  ⋆｡˚⊱ · protected · powered by ⋆
 #
-# v3.0 — 3 técnicas nuevas (aprobadas para superar referencias estilo
+# v2.0 — 3 técnicas nuevas (aprobadas para superar referencias estilo
 # Chumo SIN copiarlas, con identidad 100% Maxinet):
 #   1) Gradiente por línea  → mv_grad_txt / mv_grad_rainbow / mv_banner_3d
 #      (arcoíris real por carácter, SIN depender de lolcat/figlet)
@@ -20,21 +20,21 @@
 #      (5 variantes: identidad propia, no msg-bar de Chumo)
 #
 # Uso:  source "$BASE/lib/ui.sh"
-#   mv_header "TITULO" "Subtitulo" "v3.0"
+#   mv_header "TITULO" "Subtitulo" "v2.0"
 #   mv_section "💻 SISTEMA"
 #   mv_kv "IP" "$IP"
 #   mv_pill "ON" "Cloudflare"
 #   maxinet_contacts / maxinet_footer
 #   mv_panel_top "TITULO" · mv_prow "icono" "label" "valor" · mv_panel_bot
 #   mv_fun_bar "Instalando…" "apt-get install -y nginx"
-#   mv_grad_txt "M O V I V I P" 45 33        # gradiente cian→azul
+#   mv_grad_txt "M A X I N E T" 45 33        # gradiente cian→azul
 #   mv_sep_rainbow                            # separador arcoíris
 #=============================================================
 
 [[ -n "$MV_UI_LOADED" ]] && return 0
 MV_UI_LOADED=1
 
-# ── Paleta PREMIUM (ANSI-256, igual que banner v2.1) ──
+# ── Paleta PREMIUM (ANSI-256, igual que banner v2.0) ──
 # Importante: usar $'...' → byte ESC real, funciona con printf %s/%b, echo, etc.
 MV_R=$'\e[0m'
 MV_RED=$'\e[38;5;203m'; MV_GRN=$'\e[38;5;82m'; MV_GLD=$'\e[38;5;220m'; MV_YLW=$'\e[38;5;226m'
@@ -48,7 +48,7 @@ MV_BLD=$'\e[1m'
 
 # ── Gradiente LINEAL entre 2 colores de la paleta 0-255 ──
 # mv_grad_txt "TEXTO" c_inicio c_fin [negrita]
-#   Ej: mv_grad_txt "M O V I V I P" 45 33 1  → cian➜azul en negrita
+#   Ej: mv_grad_txt "M A X I N E T" 45 33 1  → cian➜azul en negrita
 # Devuelve/imprime el texto pintado, listo para mv_center/printf %b.
 mv_grad_txt(){
     local txt="$1" c1="${2:-45}" c2="${3:-33}" bold="${4:-0}" out="" c i n step d
@@ -95,7 +95,7 @@ mv_grad_rainbow(){
     printf "%b%s%b" "$out" "" "$MV_R"
 }
 
-# ── Logo 3D oficial con gradiente por LÍNEA (v3.0) ──
+# ── Logo 3D oficial con gradiente por LÍNEA (v2.0) ──
 # Cada línea del logo recibe un gradiente distinto (identidad Maxinet,
 # superior al figlet|lolcat plano de Chumo: aquí cada letra se funde).
 # mv_banner_3d [título]  → imprime el logo + título opcional
@@ -311,7 +311,7 @@ mv_signature(){
 
 # ── Header principal: ═══ + ◆ título ◆ + ═══ (estilo banner) ──
 mv_header(){
-    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.1}"
+    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.0}"
     mv_line
     mv_center "${MV_GLD}◆${MV_R}  ${MV_BLD}${MV_WHT}${TITLE}${MV_R}  ${MV_DIM}[${MV_R}${MV_CYN}${VER}${MV_R}${MV_DIM}]${MV_R}  ${MV_GLD}◆${MV_R}"
     [[ -n "$SUB" ]] && mv_center "${MV_YLW}${SUB}${MV_R}"
@@ -321,7 +321,7 @@ mv_header(){
 # ── Header dorado con sello (idéntico al banner: ── ◆ MAXINET ◆ ──) ──
 mv_gold_header(){
     mv_line
-    mv_center "${MV_GLD}── ${MV_R}${MV_GLD}◆${MV_R} ${MV_GLD}M O V I V I P${MV_R} ${MV_GLD}◆${MV_R} ${MV_GLD}──${MV_R}"
+    mv_center "${MV_GLD}── ${MV_R}${MV_GLD}◆${MV_R} ${MV_GLD}M A X I N E T${MV_R} ${MV_GLD}◆${MV_R} ${MV_GLD}──${MV_R}"
     mv_line
 }
 
@@ -348,7 +348,7 @@ maxinet_sub_header(){
 # ── Mini-logo 3D MAXINET compacto (estilo banner SSH, centrado) ──
 # Reutilizable en TODOS los menús: banner_maxinet "TÍTULO" (o sin título)
 # Logo + título centrados; el llamador decide las líneas de marco ════.
-# v3.0: banner_maxinet usa el GRADIENTE por línea (mv_banner_3d).
+# v2.0: banner_maxinet usa el GRADIENTE por línea (mv_banner_3d).
 banner_maxinet(){
     local titulo="${1:-}" line
     line=$(mv_grad_txt "  _______  _____  _    _ _____ _    _ _____  _____ " 51 45 1); mv_center "$line"
@@ -434,7 +434,7 @@ mv_prow(){
         "$MV_MAG" "$icon" "$label" "$val" "$pad" "" "$MV_MAG" "$MV_R"
 }
 
-# ── Fila con BARRAS DE PROGRESO en color (v3.0 TÉCNICA 2) ──
+# ── Fila con BARRAS DE PROGRESO en color (v2.0 TÉCNICA 2) ──
 # Uso: mv_prow_bars "RAM" "56" "CPU" "88"
 #   │ RAM ▮▮▮▮░░░░░░░░ 56%   CPU ▮▮▮▮▮▮▮▮░░ 88%  │
 # Difiere de mv_prow: calcula el padding con mv_w (limpia ANSI),
@@ -502,7 +502,7 @@ mv_prow_center(){
 maxinet_footer(){
     echo ""
     mv_line_thin
-    mv_center "${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡ ${MV_R}${MV_CYN}⋆｡˚⊱ ${MV_GLD}${MV_BLD}M O V I V I P${MV_R}${MV_CYN} ⊰˚｡⋆${MV_R} ${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡${MV_R}"
+    mv_center "${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡ ${MV_R}${MV_CYN}⋆｡˚⊱ ${MV_GLD}${MV_BLD}M A X I N E T${MV_R}${MV_CYN} ⊰˚｡⋆${MV_R} ${MV_ORA}｡ﾟﾟ･｡･ﾟﾟ｡${MV_R}"
     mv_center "${MV_DIM}🤝 Socios:${MV_R} ${MV_WHT}t.me/FreeNetZonevip${MV_R} ${MV_DIM}·${MV_R} ${MV_WHT}t.me/FreeNetZonevips${MV_R}"
     mv_line_thin
 }
