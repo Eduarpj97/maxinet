@@ -9,6 +9,27 @@
 # ── i18n shim (auto) ───────────────────────────────
 if ! declare -F trx >/dev/null 2>&1; then trx() { printf '%s' "$1"; }; fi
 
+# ═══════════════════════════════════════════════════════════════
+# MODO UPDATE: --update salta prompts y usa variables de entorno
+#   MAXINET_SRC: directorio con el código fuente (payload)
+#   MAXINET_VERSION: versión a registrar
+# ══════════════════════════════════════════════════════════════
+for _arg in "$@"; do
+    case "$_arg" in
+        --update)
+            export AUTO_INSTALL=1
+            export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "2.2.0")}"
+            shift
+            ;;
+        --limpiar-solo)
+            limpiar_disco_profundo
+            exit 0
+            ;;
+    esac
+done
+
+
 # ── Separador NEBULA adaptativo (móvil 30..46 cols) — FIX v6.3 ──
 mv_hr(){
     local _w
