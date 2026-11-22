@@ -101,9 +101,12 @@ mv_grad_rainbow(){
 # mv_banner_3d [título]  → imprime el logo + título opcional
 mv_banner_3d(){
     local titulo="${1:-}" line
-    line=$(mv_grad_txt "  _______  _____  _    _ _____ _    _ _____  _____ " 51 45 1); mv_center "$line"
-    line=$(mv_grad_txt "  |  |  | |     |  \  /    |    \  /    |   |_____]" 45 39 1); mv_center "$line"
-    line=$(mv_grad_txt "  |  |  | |_____|   \/   __|__   \/   __|__ |      " 39 33 1); mv_center "$line"
+    line=$(mv_grad_txt "    ███╗   ███╗ ██████╗ ██╗  ██╗ █████╗ ██████╗ " 51 45 1); mv_center "$line"
+    line=$(mv_grad_txt "    ████╗ ████║██╔═══██╗██║  ██║██╔══██╗██╔══██╗" 45 39 1); mv_center "$line"
+    line=$(mv_grad_txt "    ██╔████╔██║██║   ██║███████║███████║██████╔╝" 39 33 1); mv_center "$line"
+    line=$(mv_grad_txt "    ██║╚██╔╝██║██║   ██║██╔══██║██╔══██║██╔═══╝ " 33 27 1); mv_center "$line"
+    line=$(mv_grad_txt "    ██║ ╚═╝ ██║╚██████╔╝██║  ██║██║  ██║██║     " 27 21 1); mv_center "$line"
+    line=$(mv_grad_txt "    ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     " 21 15 1); mv_center "$line"
     if [[ -n "$titulo" ]]; then
         mv_grad_rainbow "◆  ${titulo}  ◆" 1; echo ""
     fi
@@ -350,13 +353,8 @@ maxinet_sub_header(){
 # Logo + título centrados; el llamador decide las líneas de marco ════.
 # v2.2: banner_maxinet usa el GRADIENTE por línea (mv_banner_3d).
 banner_maxinet(){
-    local titulo="${1:-}" line
-    line=$(mv_grad_txt "  _______  _____  _    _ _____ _    _ _____  _____ " 51 45 1); mv_center "$line"
-    line=$(mv_grad_txt "  |  |  | |     |  \  /    |    \  /    |   |_____]" 45 39 1); mv_center "$line"
-    line=$(mv_grad_txt "  |  |  | |_____|   \/   __|__   \/   __|__ |      " 39 33 1); mv_center "$line"
-    if [[ -n "$titulo" ]]; then
-        mv_center "${MV_GLD}${MV_BLD}◆  ${titulo}  ◆${MV_R}"
-    fi
+    local titulo="${1:-}"
+    mv_banner_3d "$titulo"
 }
 
 # ── Header de marco completo: ═══ + logo + título + contactos + ═══ ──

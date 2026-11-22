@@ -3736,21 +3736,23 @@ p_fila() {
 # ==================================================
 #  BANNER PRINCIPAL
 # ==================================================
+# ==================================================
+#  BANNER PRINCIPAL
+# ==================================================
 hr "═"
 center ""
-center "${C_CIAN2}${BOLD}   ███╗   ███╗ ██████╗ ██╗   ██╗██╗██╗   ██╗██╗██████╗ ${C_RESET}"
-center "${C_CIAN}${BOLD}   ████╗ ████║██╔═══██╗██║   ██║██║██║   ██║██║██╔══██╗${C_RESET}"
-center "${C_CIAN}${BOLD}   ██╔████╔██║██║   ██║██║   ██║██║██║   ██║██║██████╔╝${C_RESET}"
-center "${C_AZUL}${BOLD}   ██║╚██╔╝██║██║   ██║╚██╗ ██╔╝██║╚██╗ ██╔╝██║██╔═══╝ ${C_RESET}"
-center "${C_AZUL}${BOLD}   ██║ ╚═╝ ██║╚██████╔╝ ╚████╔╝ ██║ ╚████╔╝ ██║██║     ${C_RESET}"
-center "${C_AZUL2}${BOLD}   ╚═╝     ╚═╝ ╚═════╝   ╚═══╝  ╚═╝  ╚═══╝  ╚═╝╚═╝     ${C_RESET}"
+center "${C_CIAN2}${BOLD}    ███╗   ███╗ ██████╗ ██╗  ██╗ █████╗ ██████╗ ${C_RESET}"
+center "${C_CIAN}${BOLD}    ████╗ ████║██╔═══██╗██║  ██║██╔══██╗██╔══██╗${C_RESET}"
+center "${C_CIAN}${BOLD}    ██╔████╔██║██║   ██║███████║███████║██████╔╝${C_RESET}"
+center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██║   ██║██╔══██║██╔══██║██╔═══╝ ${C_RESET}"
+center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║╚██████╔╝██║  ██║██║  ██║██║     ${C_RESET}"
+center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝ ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝     ${C_RESET}"
 center ""
-center "${C_ROJO}${BOLD}  ──  ◆  M A X I N E T   N E T W O R K  ◆  ──  ${C_RESET}"
+center "${C_DORADO}${BOLD}    ──  ◆  MAXINET  ◆  ──  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
 center ""
 hr "═"
 center ""
-
 # ── Panel de información ──────────────────────────
 p_marco_sup
 p_linea "${C_BLANCO}${BOLD}          📊  INFORMACIÓN DEL SERVIDOR          ${C_RESET}"
