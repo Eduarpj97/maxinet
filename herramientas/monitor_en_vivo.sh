@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.5
+# Maxinet Network Premium v2.6
 # Monitor Conectados (En Vivo) · 100% Datos Reales
 # Monitoreo pasivo (nf_conntrack / sockets / journal)
 #==================================================
@@ -131,7 +131,7 @@ mostrar_pantalla_monitor() {
     local DOMINIO=$(cat "$BASE/dominio" 2>/dev/null || echo "${IP_PUB:-127.0.0.1}")
 
     echo -e "${BL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
-    echo -e "       ${GD}★${RST} ${WH}MAXINET NETWORK · MONITOR CONECTADOS (EN VIVO)${RST} ${CY}v2.5${RST} ${GD}★${RST}"
+    echo -e "       ${GD}★${RST} ${WH}MAXINET NETWORK · MONITOR CONECTADOS (EN VIVO)${RST} ${CY}v2.6${RST} ${GD}★${RST}"
     echo -e "${BL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RST}"
     echo -e "  ${GD}◆${RST} ${CY}Host:${RST} ${WH}$DOMINIO${RST} (${IP_PUB})  ${GD}◆${RST} ${CY}RAM:${RST} ${WH}$RAM_U${RST}  ${GD}◆${RST} ${CY}CPU:${RST} ${WH}$CPU_U${RST}  ${GD}◆${RST} ${CY}Arch:${RST} ${WH}$ARCH${RST}"
 

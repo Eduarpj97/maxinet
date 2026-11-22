@@ -3607,7 +3607,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.5
+# Maxinet Network - Premium Welcome Banner v2.6
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -3844,7 +3844,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.5  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.6  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>
@@ -3870,6 +3870,149 @@ run_cmd "Configurando banner en sshd_config" "$LINENO" "grep -q '^Banner' /etc/s
 run_cmd "Configurando banner en dropbear" "$LINENO" "grep -q 'DROPBEAR_BANNER' /etc/default/dropbear 2>/dev/null || echo 'DROPBEAR_BANNER=\"/etc/issue.net\"' >> /etc/default/dropbear"
 run_cmd "Reiniciando SSH y Dropbear" "$LINENO" "systemctl restart ssh 2>/dev/null; systemctl restart dropbear 2>/dev/null; systemctl restart dropbear_custom 2>/dev/null; true"
 
+
+
+# ════════════════════════════════════════════════════════════════════
+# MÓDULOS FUNCIONALES COMPLETOS (v2.6)
+# ════════════════════════════════════════════════════════════════════
+step "Configurando módulos funcionales completos (Monitor, Optimizador, Tráfico)..."
+
+# 1. Instalar dependencias necesarias
+run_cmd "Instalando dependencias (ethtool, iptables, procps, bc)" "$LINENO" "pkg_install ethtool iptables procps bc"
+
+# 2. Configurar iptables accounting para Tráfico & Consumo (UID owner match)
+run_cmd "Configurando iptables accounting UID para Tráfico & Consumo" "$LINENO" "
+    # Crear cadena MAXINET_TRAFFIC si no existe
+    iptables -N MAXINET_TRAFFIC 2>/dev/null || true
+    # Asegurar que la cadena está en OUTPUT
+    iptables -C OUTPUT -j MAXINET_TRAFFIC 2>/dev/null || iptables -I OUTPUT 1 -j MAXINET_TRAFFIC
+    # Regla por defecto para root (sin accounting)
+    iptables -C MAXINET_TRAFFIC -m owner --uid-owner 0 -j RETURN 2>/dev/null || iptables -A MAXINET_TRAFFIC -m owner --uid-owner 0 -j RETURN
+    # Reglas por usuario se agregarán dinámicamente via network_traffic.sh --snapshot
+"
+
+# 3. Instalar y habilitar maxinet-monitor.service (Monitor Conectados En Vivo)
+run_cmd "Instalando servicio Monitor Conectados (En Vivo)" "$LINENO" "
+    if [[ -f /etc/maxinet/herramientas/monitor_en_vivo.sh ]]; then
+        bash /etc/maxinet/herramientas/monitor_en_vivo.sh --install-service
+        systemctl daemon-reload
+        systemctl enable maxinet-monitor.service >/dev/null 2>&1
+        systemctl start maxinet-monitor.service >/dev/null 2>&1
+    fi
+"
+
+# 4. Instalar cron para Tráfico & Consumo (snapshot cada minuto)
+run_cmd "Instalando cron Tráfico & Consumo (snapshot 1 min)" "$LINENO" "
+    if [[ -f /etc/maxinet/herramientas/network_traffic.sh ]]; then
+        mkdir -p /etc/maxinet/scripts
+        cat > /etc/maxinet/scripts/trafico_cron.sh << 'TROF'
+#!/bin/bash
+BASE="/etc/maxinet"
+source "$BASE/herramientas/network_traffic.sh" --snapshot >/dev/null 2>&1
+TROF
+        chmod +x /etc/maxinet/scripts/trafico_cron.sh
+        ( crontab -l 2>/dev/null | grep -v 'trafico_cron' ; echo '* * * * * /bin/bash /etc/maxinet/scripts/trafico_cron.sh >/dev/null 2>&1' ) | crontab -
+    fi
+"
+
+# 5. Configurar sysctl persistente para Optimizador de Red (Carrier Grade)
+run_cmd "Configurando sysctl persistente Optimizador Red (Carrier Grade)" "$LINENO" "
+    cat > /etc/sysctl.d/99-maxinet-optimizer.conf << 'SYSCTL_EOF'
+# Maxinet Network v2.6 - Optimizador Carrier Grade
+# TCP BBR v3 + FQ Pacing
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+# Buffers extendidos 64MB
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.core.rmem_default = 33554432
+net.core.wmem_default = 33554432
+net.core.optmem_max = 2048576
+# TCP tuning
+net.ipv4.tcp_rmem = 4096 87380 67108864
+net.ipv4.tcp_wmem = 4096 65536 67108864
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_fin_timeout = 15
+net.ipv4.tcp_keepalive_time = 300
+net.ipv4.tcp_keepalive_intvl = 15
+net.ipv4.tcp_keepalive_probes = 5
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_notsent_lowat = 16384
+net.ipv4.tcp_mtu_probing = 1
+# Network stack
+net.core.netdev_max_backlog = 100000
+net.core.somaxconn = 65535
+net.ipv4.ip_forward = 1
+net.core.netdev_budget = 60000
+net.core.netdev_budget_usecs = 8000
+SYSCTL_EOF
+    sysctl --system >/dev/null 2>&1
+"
+
+# 6. Aplicar MTU 1470 en interfaz principal (compatibilidad VPN)
+run_cmd "Aplicando MTU 1470 en interfaz principal" "$LINENO" "
+    IFACE=$(ip route show default 2>/dev/null | awk '{print $5}' | head -1)
+    IFACE=${IFACE:-eth0}
+    ip link set dev "$IFACE" mtu 1470 2>/dev/null || true
+"
+
+# 7. Instalar ethtool para ring buffers
+run_cmd "Instalando ethtool para Ring Buffers" "$LINENO" "pkg_install ethtool"
+
+# 8. Ejecutar snapshot inicial de tráfico
+run_cmd "Ejecutando snapshot inicial de Tráfico & Consumo" "$LINENO" "
+    if [[ -f /etc/maxinet/herramientas/network_traffic.sh ]]; then
+        mkdir -p /etc/maxinet/trafico/historial /etc/maxinet/trafico/snapshots
+        bash /etc/maxinet/herramientas/network_traffic.sh --snapshot
+    fi
+"
+
+# 9. Aplicar optimización Carrier Grade por defecto (BBR + FQ + Buffers 64MB)
+run_cmd "Aplicando optimización Carrier Grade por defecto (BBR + FQ + Buffers 64MB)" "$LINENO" "
+    modprobe tcp_bbr 2>/dev/null
+    sysctl -w net.core.default_qdisc=fq >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_congestion_control=bbr >/dev/null 2>&1
+    sysctl -w net.core.rmem_max=67108864 >/dev/null 2>&1
+    sysctl -w net.core.wmem_max=67108864 >/dev/null 2>&1
+    sysctl -w net.core.rmem_default=33554432 >/dev/null 2>&1
+    sysctl -w net.core.wmem_default=33554432 >/dev/null 2>&1
+    sysctl -w net.core.rmem_default=33554432 >/dev/null 2>&1
+    sysctl -w net.core.wmem_default=33554432 >/dev/null 2>&1
+    sysctl -w net.core.optmem_max=2048576 >/dev/null 2>&1
+    sysctl -w net.core.netdev_max_backlog=100000 >/dev/null 2>&1
+    sysctl -w net.core.somaxconn=65535 >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_rmem='4096 87380 67108864' >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_wmem='4096 65536 67108864' >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_fastopen=3 >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_tw_reuse=1 >/dev/null 2>&1
+    sysctl -w net.ipv4.tcp_fin_timeout=15 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_time=300 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_intvl=15 >/dev/null 2>&1
+sysctl -w net.ipv4.tcp_keepalive_probes=5 >/dev/null 2>&1
+IFACE=$(ip route show default 2>/dev/null | awk '{print $5}' | head -1)
+IFACE=${IFACE:-eth0}
+ip link set dev "$IFACE" txqueuelen 20000 2>/dev/null || true
+"
+
+# 10. Configurar DNS Cloudflare + Google (baja latencia)
+run_cmd "Configurando DNS Cloudflare + Google (baja latencia)" "$LINENO" "
+    echo -e 'nameserver 1.1.1.1\nnameserver 8.8.8.8' > /etc/resolv.conf 2>/dev/null
+"
+
+# 11. Habilitar servicio maxinet-monitor si no está activo
+run_cmd "Verificando servicio Monitor Conectados" "$LINENO" "
+    systemctl is-active --quiet maxinet-monitor.service 2>/dev/null || systemctl start maxinet-monitor.service 2>/dev/null || true
+"
+
+# 12. Asegurar directorios y DBs de Tráfico & Consumo
+run_cmd "Creando directorios y DBs Tráfico & Consumo" "$LINENO" "
+    mkdir -p /etc/maxinet/trafico/historial /etc/maxinet/trafico/snapshots /etc/maxinet/scripts
+    touch /etc/maxinet/trafico/consumo.db /etc/maxinet/trafico/limites_gb.db /etc/maxinet/trafico/bloqueados.db
+"
+
+echo -e "  ${GREEN}✅ Módulos funcionales completos configurados: Monitor, Optimizador, Tráfico${RESET}"
 
 # ═══════════════════════════════════════════════════════════════
 # RESUMEN FINAL
