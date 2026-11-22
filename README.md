@@ -147,4 +147,4 @@ Código liberado sin restricciones de licencia. Uso libre.
 
 ---
 
-**Maxinet Network** — Sistema Integral de Gestión de Red y VPN v2.4
+**Maxinet Network** — Sistema Integral de Gestión de Red y VPN v2.5

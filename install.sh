@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "2.4.0")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "2.5.0")}"
             shift
             ;;
         --limpiar-solo)
@@ -3607,7 +3607,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.4
+# Maxinet Network - Premium Welcome Banner v2.5
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -3844,7 +3844,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.4  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.5  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>

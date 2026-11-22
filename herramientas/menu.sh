@@ -96,6 +96,7 @@ SEL=$(nav_pick "► $(trx 'Opción:')" \
     "🔌 API Access" \
     "$(trx '📈 HWID Quota Monitor')" \
     "$(trx '🖥 Monitor Live')" \
+    "$(trx '📡 Monitor Conectados (En Vivo)')" \
     "$(trx '📸 Network Snapshot')" \
     "🗂 FileBrowser" \
     "🔍 CheckUser" \
@@ -231,9 +232,10 @@ EOF
     21) _run_herr "instalar_apiaccess.sh" ;;
     22) _run_herr "hwid_quota_monitor.sh" ;;
     23) _run_herr "monitorlive.sh" ;;
-    24) _run_herr "network_snapshot.sh" ;;
-    25) _run_herr "filebrowser.sh" ;;
-    26) _run_herr "checkuser.sh" ;;
-    0|27) exec bash "$BASE/menu.sh" ;;
+    24) _run_herr "monitor_en_vivo.sh" ;;
+    25) _run_herr "network_snapshot.sh" ;;
+    26) _run_herr "filebrowser.sh" ;;
+    27) _run_herr "checkuser.sh" ;;
+    0|28) exec bash "$BASE/menu.sh" ;;
     *) exec bash "$BASE/menu.sh" ;;
 esac

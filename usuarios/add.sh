@@ -1,593 +1,327 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium
-# Crear Usuario SSH
+# Maxinet Network Premium v2.5
+# Asistente Interactivo de Creación de Usuario SSH
+# Integración nativa con tarjeta en vivo (70 cols)
 #==================================================
-
-#======== COLORES ========#
-GREEN="\e[1;92m"
-RED="\e[1;91m"
-YELLOW="\e[1;93m"
-BLUE="\e[1;94m"
-CYAN="\e[1;96m"
-MAGENTA="\e[1;95m"
-WHITE="\e[1;97m"
-GRAY="\e[1;90m"
-RESET="\e[0m"
-
-# ============================================================
-# >>> NEBULA v3.0 <<< Identidad visual heredada del design system
-# Redefine los colores locales con la paleta NEBULA (lib/ui.sh)
-# Fallback seguro: si ui.sh no carga, se conserva el color local.
-# ============================================================
-source "${BASE:-/etc/maxinet}/lib/ui.sh" 2>/dev/null || true
-GREEN="${MV_GRN:-$GREEN}"; RED="${MV_RED:-$RED}"; YELLOW="${MV_YLW:-$YELLOW}"; BLUE="${MV_BLU:-$BLUE}"; CYAN="${MV_CYN:-$CYAN}"; MAGENTA="${MV_MAG:-$MAGENTA}"; WHITE="${MV_WHT:-$WHITE}"; GRAY="${MV_DIM:-$GRAY}"; RESET="${MV_R:-$RESET}"
-
-
-#======== CONFIG ========#
 
 BASE="/etc/maxinet"
 CONFIG="$BASE/config.conf"
+DB_USERS="$BASE/usuarios.db"
 
-[[ -f "$CONFIG" ]] && source "$CONFIG"
+mkdir -p "$BASE" 2>/dev/null
+touch "$DB_USERS" 2>/dev/null
 
-#==================================================
-# IDIOMA (multi-idioma para creacion de cuentas)
-#==================================================
-if [[ -f "$BASE/languages/lang.sh" ]]; then
-    source "$BASE/languages/lang.sh"
-    load_language "$(get_current_language)"
-fi
+# Cargar sistema de interfaz y colores
+source "$BASE/lib/ui.sh" 2>/dev/null || true
+[[ -f "$CONFIG" ]] && source "$CONFIG" 2>/dev/null
 
-#==================================================
-# FUNCION: suavizar texto con trx (fallback espanol)
-#==================================================
-T() { trx "$1"; }
+# Paleta ANSI / Nebula
+C_RESET="\033[0m"
+C_BOLD="\033[1m"
+C_DIM="\033[2m"
+C_B_AZUL="\033[1;34m"
+C_B_CIAN="\033[1;36m"
+C_B_VERDE="\033[1;32m"
+C_B_AMARILLO="\033[1;33m"
+C_B_ROJO="\033[1;31m"
+C_B_BLANCO="\033[1;37m"
+C_B_MAGENTA="\033[1;35m"
+C_TURQUESA="\033[38;5;45m"
+C_DORADO="\033[38;5;220m"
+C_GRIS="\033[38;5;245m"
 
-# Duración días/horas/minutos (lib compartida)
-[[ -f "$BASE/lib/duracion.sh" ]] && source "$BASE/lib/duracion.sh"
-
-while true; do
-
-clear
-
-echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${CYAN}║${MAGENTA}              Maxinet Network Premium               ${CYAN}║${RESET}"
-echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${RESET}"
-echo -e "${CYAN}║${WHITE}                 $(T 'CREAR USUARIO SSH')                  ${CYAN}║${RESET}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${RESET}"
-echo
-
-read -r -rp "$(echo -e "${GREEN}$(T '👤 Usuario')               : ${RESET}")" USER || break
-
-if [[ -z "$USER" ]]; then
-    echo
-    echo -e "${RED}✖ $(T 'Debe ingresar un nombre de usuario.')${RESET}"
-    sleep 2
-    continue
-fi
-
-if id "$USER" &>/dev/null; then
-    echo
-    echo -e "${RED}✖ $(T 'El usuario ya existe.')${RESET}"
-    sleep 2
-    continue
-fi
-
-read -r -rp "$(echo -e "${GREEN}$(T '🔑 Contraseña')            : ${RESET}")" PASS || break
-echo
-
-if [[ -z "$PASS" ]]; then
-    echo
-    echo -e "${RED}✖ $(T 'Debe ingresar una contraseña.')${RESET}"
-    sleep 2
-    continue
-fi
-
-if declare -F mv_ask_duracion >/dev/null 2>&1; then
-    if ! mv_ask_duracion 30; then
-        echo
-        echo -e "${YELLOW}← $(T 'Operación cancelada. Volviendo al menú...')${RESET}"
-        sleep 1
-        continue
+# Medición segura de caracteres visibles (ignora códigos ANSI)
+ansi_ancho() {
+    local str="$1"
+    local clean
+    clean=$(printf '%b' "$str" | sed -r "s/\x1B\[([0-9]{1,3}(;[0-9]{1,3})*)?[mGK]//g" 2>/dev/null)
+    if [[ -z "$clean" ]]; then
+        clean=$(printf '%s' "$str" | sed 's/\\033\[[0-9;]*m//g' | sed 's/\\e\[[0-9;]*m//g')
     fi
-    DIAS="${DUR_DIAS:-30}"; HORAS="${DUR_HORAS:-0}"; MINUTOS="${DUR_MIN:-0}"
-else
-    read -r -rp "$(echo -e "${GREEN}$(T '📅 Duración (días)')       : ${RESET}")" DIAS || break
-
-    [[ -z "$DIAS" ]] && DIAS=30
-    HORAS=0; MINUTOS=0
-fi
-
-read -r -rp "$(echo -e "${GREEN}$(T '🌐 Límite (0=Ilimitado)')  : ${RESET}")" LIMITE || break
-
-[[ -z "$LIMITE" ]] && LIMITE=0
-
-if ! [[ "$LIMITE" =~ ^[0-9]+$ ]]; then
-    echo
-    echo -e "${RED}✖ $(T 'El límite debe ser un número.')${RESET}"
-    sleep 2
-    continue
-fi
-
-if [[ "$LIMITE" -eq 0 ]]; then
-    LIMITE_MOSTRAR="♾️ Ilimitado"
-else
-    LIMITE_MOSTRAR="$LIMITE"
-fi
-
-#==================================================
-# LÍMITE DE CONSUMO (DATOS): 100GB/200GB/500GB/800GB/1TB/♾️
-#==================================================
-
-echo
-echo -e "${YELLOW}╔══════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${YELLOW}║${WHITE}        📊 $(T 'LÍMITE DE CONSUMO (DATOS)')               ${YELLOW}║${RESET}"
-echo -e "${YELLOW}╚══════════════════════════════════════════════════════════════╝${RESET}"
-echo -e "${GREEN}[1]${WHITE} 100 GB"
-echo -e "${GREEN}[2]${WHITE} 200 GB"
-echo -e "${GREEN}[3]${WHITE} 500 GB"
-echo -e "${GREEN}[4]${WHITE} 800 GB"
-echo -e "${GREEN}[5]${WHITE} 1 TB"
-echo -e "${GREEN}[6]${WHITE} ♾️ Ilimitado"
-echo -e "${CYAN}────────────────────────────────────────────────────────────────${RESET}"
-
-read -r -rp "$(echo -e "${GREEN}$(T '📊 Límite de consumo') [6]: ${RESET}")" OPC_CONSUMO || break
-
-[[ -z "$OPC_CONSUMO" ]] && OPC_CONSUMO=6
-
-case "$OPC_CONSUMO" in
-    1) CONSUMO_BYTES=107374182400; CONSUMO_MOSTRAR="100 GB" ;;
-    2) CONSUMO_BYTES=214748364800; CONSUMO_MOSTRAR="200 GB" ;;
-    3) CONSUMO_BYTES=536870912000; CONSUMO_MOSTRAR="500 GB" ;;
-    4) CONSUMO_BYTES=858993459200; CONSUMO_MOSTRAR="800 GB" ;;
-    5) CONSUMO_BYTES=1099511627776; CONSUMO_MOSTRAR="1 TB" ;;
-    6|0) CONSUMO_BYTES=0; CONSUMO_MOSTRAR="♾️ Ilimitado" ;;
-    *)
-        echo
-        echo -e "${RED}✖ $(T 'Opción inválida.')${RESET}"
-        sleep 2
-        continue
-        ;;
-esac
-
-FECHA=$(date -d "+$DIAS days +$HORAS hours +$MINUTOS minutes" +"%Y-%m-%d")
-FECHA_HORA=$(date -d "+$DIAS days +$HORAS hours +$MINUTOS minutes" +"%Y-%m-%d %H:%M:%S")
-FECHA_TS=$(date -d "+$DIAS days +$HORAS hours +$MINUTOS minutes" +%s)
-#==================================================
-# CREAR USUARIO SSH
-#==================================================
-
-useradd -e "$FECHA" -M -s /usr/sbin/nologin "$USER"
-
-if [[ $? -ne 0 ]]; then
-    echo
-    echo -e "${RED}✖ $(T 'Error al crear el usuario.')${RESET}"
-    sleep 3
-    continue
-fi
-
-# Establecer contrasena sin validacion PAM (compatible ARM)
-HASH=$(openssl passwd -6 "$PASS" 2>/dev/null)
-
-if [[ -z "$HASH" ]]; then
-    echo
-    echo -e "${RED}✖ $(T 'Error al generar la contraseña encriptada.')${RESET}"
-    userdel -f "$USER" &>/dev/null
-    sleep 3
-    continue
-fi
-
-usermod -p "$HASH" "$USER"
-
-if [[ $? -ne 0 ]]; then
-    echo
-    echo -e "${RED}✖ $(T 'Error al establecer la contraseña.')${RESET}"
-    userdel -f "$USER" &>/dev/null
-    sleep 3
-    continue
-fi
-
-# Expiración exacta (hora/minuto) para el verificador cron
-if declare -F mv_save_exp_exacta >/dev/null 2>&1; then
-    mv_save_exp_exacta "$USER" "$FECHA_TS"
-fi
-
-#==================================================
-# GUARDAR LÍMITE DE CONSUMO
-# (0 = ilimitado; formato USUARIO=BYTES)
-#==================================================
-
-LIM_CONF="$BASE/sistema/limites_consumo.conf"
-mkdir -p "$BASE/sistema" 2>/dev/null
-touch "$LIM_CONF" 2>/dev/null
-
-# Eliminar entrada previa (si el usuario existía) y escribir la nueva
-awk -v u="$USER" 'index($0, u"=") != 1' "$LIM_CONF" > "$LIM_CONF.tmp" 2>/dev/null
-mv "$LIM_CONF.tmp" "$LIM_CONF" 2>/dev/null
-echo "$USER=$CONSUMO_BYTES" >> "$LIM_CONF"
-
-#==================================================
-# GUARDAR LÍMITE DE CONEXIONES SIMULTÁNEAS
-# (0 = ilimitado; formato USUARIO=MAXCONN)
-# El monitor corta las conexiones que excedan MAXCONN
-# sin bloquear la cuenta (online.sh --quiet / cron)
-#==================================================
-
-CONN_LIM_CONF="$BASE/sistema/limites_conexiones.conf"
-touch "$CONN_LIM_CONF" 2>/dev/null
-
-awk -v u="$USER" 'index($0, u"=") != 1' "$CONN_LIM_CONF" > "$CONN_LIM_CONF.tmp" 2>/dev/null
-mv "$CONN_LIM_CONF.tmp" "$CONN_LIM_CONF" 2>/dev/null
-echo "$USER=$LIMITE" >> "$CONN_LIM_CONF"
-
-#==================================================
-# INFORMACIÓN DEL SERVIDOR
-#==================================================
-
-clear
-
-IP=$(curl -4 -s --max-time 10 ifconfig.me 2>/dev/null)
-
-[[ -z "$IP" ]] && IP=$(hostname -I | awk '{print $1}')
-
-HOST="${SERVER_DOMAIN:-$IP}"
-
-FECHA_MOSTRAR=$(date -d "$FECHA_HORA" +"%d/%m/%Y %H:%M")
-
-#==================================================
-# PREPARAR LÍMITE
-#==================================================
-
-if [[ "$LIMITE" == "0" ]]; then
-    LIMITE_MOSTRAR="♾️ Ilimitado"
-else
-    LIMITE_MOSTRAR="$LIMITE $(T 'Conexión(es)')"
-fi
-
-if [[ "$CONSUMO_BYTES" == "0" ]]; then
-    CONSUMO_MOSTRAR="♾️ Ilimitado"
-fi
-
-#==================================================
-# DATOS REALES DEL SISTEMA (plantilla de entrega)
-#==================================================
-
-CPU_MODEL=$(grep "model name" /proc/cpuinfo | head -1 | cut -d: -f2 | sed 's/^ //')
-CPU_USO=$(top -bn1 | awk -F'id,' '/Cpu/ {split($1,a,","); printf("%.0f%%",100-a[length(a)])}')
-RAM_TOTAL=$(free -h | awk '/Mem:/ {print $2}')
-RAM_USO=$(free -h | awk '/Mem:/ {print $3}')
-RAM_PCT=$(free | awk '/Mem:/ {printf "%.1f", $3/$2*100}')
-DISCO_TOTAL=$(df -h / | awk 'NR==2 {print $2}')
-DISCO_USO=$(df -h / | awk 'NR==2 {print $3}')
-DISCO_PCT=$(df -h / | awk 'NR==2 {print $5}')
-UPTIME=$(uptime -p | sed 's/up //')
-LOAD=$(uptime | awk -F'load average:' '{print $2}')
-
-#--- Puertos por protocolo (solo los activos) con DATOS REALES de config.conf ---
-[[ "$OPENSSH"     == "ON" ]] && P_SSH="${OPENSSH_PORT:-22}"                    || P_SSH="✘"
-[[ "$DROPBEAR"    == "ON" ]] && P_DROPBEAR="${DROPBEAR_PORT:-143}"             || P_DROPBEAR="✘"
-[[ "$SSL"         == "ON" ]] && P_SSL="${SSL_PORT:-80} | ${SSL_PORT2:-443} | ${SSL_PORT3:-8080} | ${SSL_PORT4:-8443}" || P_SSL="✘"
-[[ "$BADVPN"      == "ON" ]] && P_BADVPN="${BADVPN_PORT:-7300}"                 || P_BADVPN="✘"
-[[ "$UDP_CUSTOM"  == "ON" ]] && P_UDP="${UDP_CUSTOM_PORT:-36712}"               || P_UDP="✘"
-[[ "$ZIPVPN"      == "ON" ]] && P_ZIP="${ZIPVPN_PORT:-24075}"                   || P_ZIP="✘"
-[[ "$WEBSOCKET"   == "ON" ]] && P_HTTP="${WS_HTTP_PORT:-80}"                    || P_HTTP="✘"
-[[ "$WEBSOCKET"   == "ON" ]] && P_WS="${WS_PORT:-8080}"                         || P_WS="✘"
-[[ "$WEBSOCKET"   == "ON" ]] && P_WSS="${WSS_PORT:-8880}"                       || P_WSS="✘"
-[[ "$V2RAY"       == "ON" ]] && P_XRAY="${XRAY_PORT:-443} | 80 | 8080"          || P_XRAY="✘"
-[[ "$HYSTERIA"    == "ON" ]] && P_HYSTERIA="${HYSTERIA_PORT:-13901}"            || P_HYSTERIA="✘"
-[[ "$SQUID"       == "ON" ]] && P_SQUID="${SQUID_PORT:-3128}"                   || P_SQUID="✘"
-[[ "$WG"          == "ON" ]] && P_WG="${WG_PORT:-51820}"                        || P_WG="✘"
-[[ "$SYSTEMDNS"   == "ON" ]] && P_SYSTEMDNS="53"                                || P_SYSTEMDNS="✘"
-[[ "$XHTTP"       == "ON" ]] && P_XHTTP="${XHTTP_PORT:-443} | ${XHTTP_PORT2:-8080}" || P_XHTTP="✘"
-[[ "$BHTTP"       == "ON" ]] && P_BHTTP="${BHTTP_PORT:-80} | ${BHTTP_XPORT:-8443}" || P_BHTTP="✘"
-[[ "$BTUN"        == "ON" ]] && P_BTUN="${BTUN_PORT:-7900}"                     || P_BTUN="✘"
-[[ "$SHADOWSOCKS" == "ON" ]] && P_SS="${SHADOWSOCKS_PORT:-8388}"                || P_SS="✘"
-[[ "$PAYLOAD"     == "ON" ]] && P_PAY="${PAYLOAD_PORT:-8082-8085}"              || P_PAY="✘"
-[[ "$OPENVPN"     == "ON" ]] && P_OPENVPN="${OPENVPN_PORT:-1194}"               || P_OPENVPN="✘"
-[[ "$SOCKS5"      == "ON" ]] && P_SOCKS5="${SOCKS5_PORT:-1080}"                 || P_SOCKS5="✘"
-[[ "$HCR"         == "ON" ]] && P_HCR="443 (TLS · SNI ${HCR_SNI:-hcr})"         || P_HCR="✘"
-[[ "$ONLINEAPP"   == "ON" ]] && P_ONLINEAPP="${ONLINEAPP_PORT:-8888}"           || P_ONLINEAPP="✘"
-
-#--- HCR datos reales (target = SSH del sistema) ---
-HCR_SNI_VALUE="${HCR_SNI:-hcr}"
-HCR_TARGET_VALUE="${HCR_TARGET:-127.0.0.1:22}"
-
-#--- Dominios CDN/SNI (Cloudflare, CloudFront, No-IP) ---
-CDN1="${SERVER_DOMAIN:-$IP}"
-CDN2="${CLOUDFRONT_DOMAIN:-}"
-CDN3="${NOIP_DOMAIN:-}"
-
-#--- SlowDNS / Noiz (datos reales desde el sistema) ---
-NS_DNS="${SLOWDNS_NS:-}"
-KEY_DNS="${SLOWDNS_KEY:-}"
-[[ -z "$NS_DNS" && -n "$SERVER_DOMAIN" ]] && NS_DNS="ns.$SERVER_DOMAIN"
-if [[ -z "$NS_DNS" && -f /etc/slowdns/domain.conf ]]; then
-    NS_DNS=$(head -1 /etc/slowdns/domain.conf 2>/dev/null)
-fi
-if [[ -z "$KEY_DNS" && -f /etc/slowdns/server.pub ]]; then
-    KEY_DNS=$(cat /etc/slowdns/server.pub 2>/dev/null)
-fi
-# Fallback al dominio oficial Maxinet (infraestructura real del usuario)
-[[ -z "$NS_DNS" ]] && NS_DNS="ns1.maxinetoppax.uk"
-[[ -z "$KEY_DNS" ]] && KEY_DNS="$(T 'No configurado')"
-
-#--- Host para payloads: dominio digitado en la instalacion (CLOUDFRONT/SERVER_DOMAIN) ---
-PAYLOAD_HOST="${CLOUDFRONT_DOMAIN:-${SERVER_DOMAIN:-$IP}}"
-
-#--- Dtunnel (proto-server) datos reales ---
-DT_TOKEN="${DTUNNEL_TOKEN:-}"
-DT_CFG="/etc/proto-server/config.json"
-DT_PORT1=""; DT_PORT2=""
-if [[ -f "$DT_CFG" ]]; then
-    DT_PORT1=$(grep -A3 '"ssl": true' "$DT_CFG" 2>/dev/null | grep -oE '"port": *[0-9]+' | grep -oE '[0-9]+' | head -1)
-    DT_PORT2=$(grep -A3 '"ssl": false' "$DT_CFG" 2>/dev/null | grep -oE '"port": *[0-9]+' | grep -oE '[0-9]+' | head -1)
-    [[ -z "$DT_PORT1" ]] && DT_PORT1="4443"
-    [[ -z "$DT_PORT2" ]] && DT_PORT2="8082"
-    P_DTUNNEL="$DT_PORT1 | $DT_PORT2"
-fi
-
-#--- Hysteria datos reales ---
-HY_PASSWORD="${HYSTERIA_AUTH:-}"
-HY_OBFS="${HYSTERIA_OBFS:-}"
-
-#--- WireGuard datos reales ---
-WG_SERVER_PUB=""
-if [[ -f /etc/wireguard/server.pub ]]; then
-    WG_SERVER_PUB=$(cat /etc/wireguard/server.pub 2>/dev/null)
-elif command -v wg &>/dev/null && wg show 2>/dev/null | grep -q 'public key'; then
-    WG_SERVER_PUB=$(wg show wg0 public-key 2>/dev/null)
-fi
-
-#--- BTUN credenciales reales (/etc/btun/users -> user:pass) ---
-BTUN_USER=""; BTUN_PASS=""
-if [[ -f /etc/btun/users ]]; then
-    BTUN_USER=$(head -n1 /etc/btun/users 2>/dev/null | cut -d: -f1)
-    BTUN_PASS=$(head -n1 /etc/btun/users 2>/dev/null | cut -d: -f2)
-fi
-
-#--- XHTTP / BHTTP hosts (dominio de instalacion) ---
-XHTTP_HOST_V="${XHTTP_HOST:-${SERVER_DOMAIN:-$IP}}"
-BHTTP_HOST_V="${BHTTP_HOST:-${SERVER_DOMAIN:-$IP}}"
-
-#--- Shadowsocks URL ss:// lista para compartir ---
-SS_URL=""
-if [[ "$SHADOWSOCKS" == "ON" && -n "${SS_PASSWORD:-}" ]]; then
-    SS_METHOD="aes-256-gcm"
-    SS_URL="ss://$(printf '%s' "$SS_METHOD:$SS_PASSWORD@$IP:${SS_PORT:-8388}" | (base64 -w0 2>/dev/null || base64))#Maxinet"
-fi
-
-#--- Payload: master y temp (pwd.pwd) ---
-PAY_MASTER=""; PAY_TEMP=""
-if [[ -f /etc/maxinet/payload/pwd.pwd ]]; then
-    PAY_MASTER=$(grep '^master=' /etc/maxinet/payload/pwd.pwd 2>/dev/null | cut -d= -f2)
-    PAY_TEMP=$(grep -E '^[0-9.]+:22=' /etc/maxinet/payload/pwd.pwd 2>/dev/null | cut -d= -f2)
-fi
-
-#==================================================
-# MOSTRAR PLANTILLA DE ENTREGA COMPLETA
-#==================================================
-
-echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${CYAN}║${MAGENTA}              Maxinet Network Premium               ${CYAN}║${RESET}"
-echo -e "${CYAN}╠══════════════════════════════════════════════════════════════╣${RESET}"
-echo -e "${CYAN}║${WHITE}      $(T 'CUENTA SSH CREADA CON ÉXITO')               ${CYAN}║${RESET}"
-echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${RESET}"
-echo
-
-echo -e "${YELLOW}               👤 $(T 'INFORMACIÓN DE LA CUENTA')${RESET}"
-echo -e "${CYAN}────────────────────────────────────────────────────────────────${RESET}"
-printf "${WHITE}┌ 👤 $(T 'Usuario')      : ${GREEN}%-35s${WHITE}┐${RESET}\n" "$USER"
-printf "${WHITE}│ 🔑 $(T 'Contraseña')   : ${GREEN}%-35s${WHITE}│${RESET}\n" "$PASS"
-printf "${WHITE}│ 📅 $(T 'Expira')       : ${GREEN}%-35s${WHITE}│${RESET}\n" "$FECHA_MOSTRAR"
-printf "${WHITE}│ 🌐 $(T 'Límite')       : ${GREEN}%-35s${WHITE}│${RESET}\n" "$LIMITE_MOSTRAR"
-printf "${WHITE}│ 📊 $(T 'Consumo Máx')  : ${GREEN}%-35s${WHITE}│${RESET}\n" "$CONSUMO_MOSTRAR"
-echo -e "${CYAN}└──────────────────────────────────────────────────────────────┘${RESET}"
-echo
-
-echo -e "${WHITE}🖥️  $(T 'Servidor'): ${GREEN}${SERVER_DOMAIN:-$IP}${RESET}"
-[[ -n "$CLOUDFRONT_DOMAIN" ]] && echo -e "${WHITE}☁️  $(T 'Cloudflare'): ${GREEN}$CLOUDFRONT_DOMAIN${RESET}"
-[[ -n "$NOIP_DOMAIN" ]]      && echo -e "${WHITE}📍 $(T 'No-IP'): ${GREEN}$NOIP_DOMAIN${RESET}"
-echo -e "${WHITE}💻  CPU: ${GREEN}$CPU_MODEL${RESET}"
-echo -e "${WHITE}🔥  $(T 'Uso CPU'): ${GREEN}$CPU_USO${RESET}"
-echo -e "${WHITE}📊  RAM: ${GREEN}$RAM_USO${WHITE} (${GREEN}$RAM_PCT%${WHITE})"
-echo -e "${WHITE}💾  $(T 'Disco'): ${GREEN}$DISCO_USO${WHITE} / ${GREEN}$DISCO_TOTAL${WHITE} (${GREEN}$DISCO_PCT%${WHITE})"
-echo -e "${WHITE}⏱️  $(T 'Uptime'): ${GREEN}$UPTIME${RESET}"
-echo -e "${WHITE}📈  $(T 'Carga'): ${GREEN}$LOAD${RESET}"
-echo
-
-echo -e "${CYAN}════════════════════════════════════════════════════════════════${RESET}"
-echo -e "${WHITE}📍  $(T 'IP Principal'): ${GREEN}$IP${RESET}"
-echo
-
-echo -e "${YELLOW}🛰️  $(T 'PUERTOS ACTIVOS (todos los protocolos)')${RESET}"
-echo -e "${CYAN}────────────────────────────────────────────────────────────────${RESET}"
-[[ "$OPENSSH"     == "ON" ]] && echo -e "${WHITE}🔑 $(T 'SSH Directo'): ${GREEN}➤ $P_SSH${RESET}"
-[[ "$DROPBEAR"    == "ON" ]] && echo -e "${WHITE}🐻 $(T 'Dropbear'): ${GREEN}➤ $P_DROPBEAR${RESET}"
-[[ "$SSL"         == "ON" ]] && echo -e "${WHITE}🔒 $(T 'SSL/Stunnel'): ${GREEN}➤ $P_SSL${RESET}"
-[[ "$BADVPN"      == "ON" ]] && echo -e "${WHITE}🎮 $(T 'BadVPN UDPGW'): ${GREEN}➤ $P_BADVPN${RESET}"
-[[ "$UDP_CUSTOM"  == "ON" ]] && echo -e "${WHITE}⚡ $(T 'UDP Custom'): ${GREEN}➤ $P_UDP${RESET}"
-[[ "$ZIPVPN"      == "ON" ]] && echo -e "${WHITE}📦 $(T 'ZIPVPN'): ${GREEN}➤ $P_ZIP${RESET}"
-[[ -n "$P_DTUNNEL" && "$P_DTUNNEL" != "✘" ]] && echo -e "${WHITE}🔌 $(T 'DTunnel'): ${GREEN}➤ $P_DTUNNEL${RESET}"
-[[ "$V2RAY"       == "ON" ]] && echo -e "${WHITE}🚀 $(T 'v2ray (VLESS/VMess/Trojan)'): ${GREEN}➤ $P_XRAY${RESET}"
-[[ "$HYSTERIA"    == "ON" ]] && echo -e "${WHITE}🌀 $(T 'Hysteria'): ${GREEN}➤ $P_HYSTERIA${RESET}"
-[[ "$SQUID"       == "ON" ]] && echo -e "${WHITE}🦑 $(T 'Squid Proxy'): ${GREEN}➤ $P_SQUID${RESET}"
-[[ "$WG"          == "ON" ]] && echo -e "${WHITE}🔗 $(T 'WireGuard'): ${GREEN}➤ $P_WG${RESET}"
-[[ "$WEBSOCKET"   == "ON" ]] && echo -e "${WHITE}🌐 $(T 'HTTP/PDirect3'): ${GREEN}➤ $P_HTTP${RESET}"
-[[ "$WEBSOCKET"   == "ON" ]] && echo -e "${WHITE}🌐 $(T 'WebSocket WS'): ${GREEN}➤ $P_WS${RESET}"
-[[ "$WEBSOCKET"   == "ON" ]] && echo -e "${WHITE}🌐 $(T 'WebSocket WSS'): ${GREEN}➤ $P_WSS${RESET}"
-[[ "$SLOWDNS"     == "ON" ]] && echo -e "${WHITE}🐌 $(T 'SlowDNS (NS/Key abajo)'): ${GREEN}➤ DNS 53 / DNSTT 5300${RESET}"
-[[ "$SYSTEMDNS"   == "ON" ]] && echo -e "${WHITE}🧬 $(T 'SystemDNS'): ${GREEN}➤ $P_SYSTEMDNS${RESET}"
-[[ "$XHTTP"       == "ON" ]] && echo -e "${WHITE}🚀 $(T 'SSH-XHTTP'): ${GREEN}➤ $P_XHTTP${RESET}"
-[[ "$BHTTP"       == "ON" ]] && echo -e "${WHITE}📡 $(T 'BHTTP v2'): ${GREEN}➤ $P_BHTTP${RESET}"
-[[ "$BTUN"        == "ON" ]] && echo -e "${WHITE}🧵 $(T 'BTUN'): ${GREEN}➤ $P_BTUN${RESET}"
-[[ "$SHADOWSOCKS" == "ON" ]] && echo -e "${WHITE}🐋 $(T 'Shadowsocks'): ${GREEN}➤ $P_SS${RESET}"
-[[ "$PAYLOAD"     == "ON" ]] && echo -e "${WHITE}🧩 $(T 'Payload'): ${GREEN}➤ $P_PAY${RESET}"
-[[ "$OPENVPN"     == "ON" ]] && echo -e "${WHITE}🛡 $(T 'OpenVPN'): ${GREEN}➤ UDP $P_OPENVPN${RESET}"
-[[ "$SOCKS5"      == "ON" ]] && echo -e "${WHITE}🐋 $(T 'SOCKS5 Proxy'): ${GREEN}➤ $P_SOCKS5${RESET}"
-[[ "$HCR"         == "ON" ]] && echo -e "${WHITE}🚀 $(T 'HCR Relay'): ${GREEN}➤ $P_HCR${RESET}"
-[[ "$ONLINEAPP"   == "ON" ]] && echo -e "${WHITE}🤖 $(T 'OnlineApp'): ${GREEN}➤ http://$IP:$P_ONLINEAPP/server/online${RESET}"
-echo
-
-echo -e "${YELLOW}🐌 $(T 'SLOWDNS / NOIZ DNS')${RESET}"
-echo -e "${WHITE}➤ $(T 'NS'): ${GREEN}${NS_DNS:-$(T 'No configurado')}${RESET}"
-echo -e "${WHITE}➤ $(T 'Key'): ${GREEN}${KEY_DNS:-$(T 'No configurado')}${RESET}"
-echo -e "${WHITE}➤ $(T 'Puertos DNS'): ${GREEN}53 / 5300${RESET}"
-echo
-
-if [[ -n "$P_DTUNNEL" && "$P_DTUNNEL" != "✘" ]]; then
-echo -e "${YELLOW}🔌 $(T 'DTUNNEL')${RESET}"
-echo -e "${WHITE}➤ $(T 'Puertos'): ${GREEN}$P_DTUNNEL${RESET}"
-[[ -n "$DT_TOKEN" ]] && echo -e "${WHITE}➤ $(T 'Token'): ${GREEN}$DT_TOKEN${RESET}"
-echo
-fi
-
-if [[ "$HYSTERIA" == "ON" ]]; then
-echo -e "${YELLOW}🌀 $(T 'HYSTERIA')${RESET}"
-echo -e "${WHITE}➤ $(T 'Puerto'): ${GREEN}$P_HYSTERIA${RESET}"
-[[ -n "$HY_PASSWORD" ]] && echo -e "${WHITE}➤ $(T 'Contraseña'): ${GREEN}$HY_PASSWORD${RESET}"
-[[ -n "$HY_OBFS" ]] && echo -e "${WHITE}➤ $(T 'Obfuscación'): ${GREEN}$HY_OBFS${RESET}"
-echo
-fi
-
-if [[ "$WG" == "ON" ]]; then
-echo -e "${YELLOW}🔗 $(T 'WIREGUARD')${RESET}"
-echo -e "${WHITE}➤ $(T 'Puerto'): ${GREEN}$P_WG${RESET}"
-[[ -n "$WG_SERVER_PUB" ]] && echo -e "${WHITE}➤ $(T 'Server Public Key'): ${GREEN}$WG_SERVER_PUB${RESET}"
-echo -e "${WHITE}➤ $(T 'Network'): ${GREEN}10.66.66.1/24${RESET}"
-echo
-fi
-
-if [[ "$SYSTEMDNS" == "ON" ]]; then
-echo -e "${YELLOW}🧬 $(T 'SYSTEMDNS')${RESET}"
-echo -e "${WHITE}➤ $(T 'Puerto'): ${GREEN}53${RESET}"
-echo -e "${WHITE}➤ $(T 'Servicio'): ${GREEN}systemd-resolved${RESET}"
-echo
-fi
-
-if [[ "$XHTTP" == "ON" ]]; then
-echo -e "${YELLOW}🚀 $(T 'SSH-XHTTP')${RESET}"
-echo -e "${WHITE}➤ $(T 'Tipo'): ${GREEN}$(T 'SSH-XHTTP (Server publish)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}$IP${RESET} · $(T 'Puerto'): ${GREEN}$P_XHTTP${RESET}"
-echo -e "${WHITE}➤ $(T 'SNI'): ${GREEN}$XHTTP_HOST_V${RESET}"
-echo -e "${WHITE}➤ $(T 'Payload'): ${GREEN}$(T 'vacío (HTTP/2 directo)')${RESET}"
-echo
-fi
-
-if [[ "$BHTTP" == "ON" ]]; then
-echo -e "${YELLOW}📡 $(T 'BHTTP v2')${RESET}"
-echo -e "${WHITE}➤ $(T 'Tipo'): ${GREEN}$(T 'SSH-BHTTP v2 (Server publish)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}$IP${RESET} · $(T 'Puertos'): ${GREEN}$P_BHTTP${RESET}"
-echo -e "${WHITE}➤ $(T 'Host/SNI'): ${GREEN}$BHTTP_HOST_V${RESET}"
-echo -e "${WHITE}➤ $(T 'Payload'): ${GREEN}GET / HTTP/1.1[crlf]Host: ${BHTTP_HOST_V}[crlf][crlf]${RESET}"
-echo
-fi
-
-if [[ "$BTUN" == "ON" ]]; then
-echo -e "${YELLOW}🧵 $(T 'BTUN')${RESET}"
-echo -e "${WHITE}➤ $(T 'Modo'): ${GREEN}$(T 'VPN / Túnel (BTUN)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}$IP${RESET} · $(T 'Puerto'): ${GREEN}$P_BTUN (TCP+UDP)${RESET}"
-echo -e "${WHITE}➤ $(T 'Subred'): ${GREEN}10.77.0.0/16${RESET}"
-[[ -n "$BTUN_USER" ]] && echo -e "${WHITE}➤ $(T 'Usuario'): ${GREEN}$BTUN_USER${RESET}"
-[[ -n "$BTUN_PASS" ]] && echo -e "${WHITE}➤ $(T 'Clave'): ${GREEN}$BTUN_PASS${RESET}"
-echo
-fi
-
-if [[ "$SHADOWSOCKS" == "ON" ]]; then
-echo -e "${YELLOW}🐋 $(T 'SHADOWSOCKS')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}$IP:${P_SS}${RESET}"
-[[ -n "$SS_PASSWORD" ]] && echo -e "${WHITE}➤ $(T 'Clave'): ${GREEN}$SS_PASSWORD${RESET}"
-echo -e "${WHITE}➤ $(T 'Método'): ${GREEN}aes-256-gcm${RESET}"
-[[ -n "$SS_URL" ]] && echo -e "${WHITE}➤ $(T 'URL'): ${GREEN}$SS_URL${RESET}"
-echo
-fi
-
-if [[ "$PAYLOAD" == "ON" ]]; then
-echo -e "${YELLOW}🧩 $(T 'PAYLOAD SERVERS')${RESET}"
-echo -e "${WHITE}➤ PDirect: ${GREEN}${PAY_PDIRECT:-8083}${RESET} ${GRAY}($(T 'pass'): ${PAY_PASS:-pass})${RESET}"
-echo -e "${WHITE}➤ PGet: ${GREEN}${PAY_GET:-8799}${RESET} · POpen: ${GREEN}${PAY_OPEN:-8082}${RESET} · PPriv: ${GREEN}${PAY_PRIV:-8084}${RESET} · PPub: ${GREEN}${PAY_PUB:-8085}${RESET}"
-[[ -n "$PAY_MASTER" ]] && echo -e "${WHITE}➤ Master PGet: ${GREEN}$PAY_MASTER${RESET}"
-[[ -n "$PAY_TEMP" ]] && echo -e "${WHITE}➤ 127.0.0.1:22: ${GREEN}$PAY_TEMP${RESET}"
-echo -e "${WHITE}➤ $(T 'Payload'): ${GREEN}GET / HTTP/1.1[crlf]Host: ${IP}[crlf][crlf]${RESET}"
-echo
-fi
-
-if [[ "$OPENVPN" == "ON" ]]; then
-echo -e "${YELLOW}🛡 $(T 'OPENVPN')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}$IP${RESET} · $(T 'Puerto'): ${GREEN}UDP $P_OPENVPN${RESET}"
-echo -e "${WHITE}➤ $(T 'Protocolo'): ${GREEN}UDP · AES-256-CBC · SHA256${RESET}"
-echo -e "${WHITE}➤ $(T 'Autenticación'): ${GREEN}$(T 'usuario + contraseña + certificado')${RESET}"
-echo -e "${WHITE}➤ $(T 'Apps'): ${GREEN}$(T 'OpenVPN Connect, KPN, HTTP Injector (OpenVPN)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Importar'): ${GREEN}$(T 'archivo .ovpn del usuario (Protocolos ↑ OpenVPN)')${RESET}"
-echo
-fi
-
-if [[ "$SOCKS5" == "ON" ]]; then
-echo -e "${YELLOW}🐋 $(T 'SOCKS5 PROXY')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}$IP${RESET} · $(T 'Puerto'): ${GREEN}$P_SOCKS5 (TCP)${RESET}"
-echo -e "${WHITE}➤ $(T 'Autenticación'): ${GREEN}$(T 'usuario + contraseña (misma cuenta)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Apps'): ${GREEN}$(T 'HTTP Injector (SOCKS5), Orbot, ProxyDroid')${RESET}"
-echo -e "${WHITE}➤ $(T 'Nota'): ${GREEN}$(T 'tráfico no cifrado, solo autenticado')${RESET}"
-echo
-fi
-
-if [[ "$HCR" == "ON" ]]; then
-echo -e "${YELLOW}🚀 $(T 'HCR RELAY (HTTP CORE)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Método'): ${GREEN}$(T 'SSL/TLS + transporte HCR (HTTP Core Relay)')${RESET}"
-echo -e "${WHITE}➤ $(T 'Servidor'): ${GREEN}${SERVER_DOMAIN:-$IP}${RESET} · $(T 'Puerto'): ${GREEN}443 (TLS)${RESET}"
-echo -e "${WHITE}➤ $(T 'SNI'): ${GREEN}$HCR_SNI_VALUE${RESET}"
-echo -e "${WHITE}➤ $(T 'User'): ${GREEN}$USER${RESET} · $(T 'Pass'): ${GREEN}$PASS${RESET}"
-echo -e "${WHITE}➤ $(T 'App'): ${GREEN}HTTP Custom${RESET} ${GRAY}($(T 'transporte HCR · SSL/TLS ON')${GRAY})${RESET}"
-echo
-fi
-
-if [[ "$ONLINEAPP" == "ON" ]]; then
-echo -e "${YELLOW}🤖 $(T 'ONLINEAPP (BOT GENERADOR)')${RESET}"
-echo -e "${WHITE}➤ $(T 'URL'): ${GREEN}http://$IP:$P_ONLINEAPP/server/online${RESET}"
-echo -e "${WHITE}➤ $(T 'URL app'): ${GREEN}http://$IP:$P_ONLINEAPP/server/online_app${RESET}"
-echo -e "${WHITE}➤ $(T 'Nota'): ${GREEN}$(T 'genera cuentas SSH/túneles para tus clientes')${RESET}"
-echo
-fi
-
-echo -e "${CYAN}════════════════════════════════════════════════════════════════${RESET}"
-echo -e "${YELLOW}🚀 $(T 'PAYLOADS AVANZADOS CLOUDFLARE')${RESET}"
-echo -e "${WHITE}1. $(T 'Normal WS (Puerto 80)')${RESET}"
-echo -e "${GREEN}GET / HTTP/1.1[crlf]Host: ${PAYLOAD_HOST}[crlf]Upgrade: websocket[crlf]Connection: Keep-Alive[crlf][crlf]${RESET}"
-echo
-echo -e "${WHITE}2. $(T 'WSS / TLS (Puerto 443 SNI)')${RESET}"
-echo -e "${GREEN}GET wss://${PAYLOAD_HOST}/ HTTP/1.1[crlf]Host: ${PAYLOAD_HOST}[crlf]Upgrade: Websocket[crlf]Connection: Keep-Alive[crlf][crlf]${RESET}"
-echo
-echo -e "${WHITE}3. $(T 'HTTP Injector (Modo SNI / Payload)')${RESET}"
-echo -e "${GREEN}[method] [host_port] HTTP/1.1[crlf]Host: ${PAYLOAD_HOST}[crlf]Upgrade: websocket[crlf]Connection: Keep-Alive[crlf][crlf]${RESET}"
-echo
-
-echo -e "${CYAN}════════════════════════════════════════════════════════════════${RESET}"
-echo -e "${WHITE}💬 $(T 'SOPORTE')${RESET}"
-echo
-echo -e "${GREEN}@Maxinet${RESET}"
-echo -e "${CYAN}════════════════════════════════════════════════════════════════${RESET}"
-echo
-echo -e "${WHITE}📣 $(T 'Canal'): ${GREEN}@Maxinet${RESET}"
-echo -e "${WHITE}💬 $(T 'Grupo'): ${GREEN}@MaxinetNet${RESET}"
-echo -e "${WHITE}📍 $(T 'Store'): ${GREEN}maxinet-network.web.app${RESET}"
-echo
-echo -e "${GREEN}🙏 $(T 'Gracias por ser parte de Maxinet Network!') 🔥${RESET}"
-echo
-
-echo -e "${GREEN}╔══════════════════════════════════════════════════════════════╗${RESET}"
-echo -e "${GREEN}║${WHITE}          ✅ $(T 'USUARIO CREADO EXITOSAMENTE')          ${GREEN}║${RESET}"
-echo -e "${GREEN}╚══════════════════════════════════════════════════════════════╝${RESET}"
-echo
-
-read -r -rp "$(echo -e "${YELLOW}¿$(T 'Desea crear otro usuario?') [S/N]: ${RESET}")" RESP || break
-
-case "$RESP" in
-    s|S|si|SI|sí|Sí|y|Y)
-        continue
-        ;;
-    *)
+    echo "${#clean}"
+}
+
+BOX_INNER=68
+
+_borde_caja() {
+    local tipo="$1"
+    local titulo="$2"
+    local color_borde="${3:-$C_B_AZUL}"
+    local izq der
+    case "$tipo" in
+        top)    izq="┌"; der="┐" ;;
+        bottom) izq="└"; der="┘" ;;
+        sep)    izq="├"; der="┤" ;;
+        *)      izq="┌"; der="┐" ;;
+    esac
+
+    local len_titulo
+    len_titulo=$(ansi_ancho "$titulo")
+    local total_fill=$(( BOX_INNER - len_titulo ))
+    (( total_fill < 0 )) && total_fill=0
+    local lleno=$(( total_fill / 2 ))
+    local vacio=$(( total_fill - lleno ))
+    local linea=""
+    for ((i=0; i<lleno; i++)); do linea+="─"; done
+    linea+="$titulo"
+    for ((i=0; i<vacio; i++)); do linea+="─"; done
+    echo -e "${color_borde}${izq}${linea}${der}${C_RESET}"
+}
+
+imprimir_linea_caja() {
+    local content="$1"
+    local color_borde="${2:-$C_B_AZUL}"
+    local target_inner=$BOX_INNER
+    local vis_len
+    vis_len=$(ansi_ancho "$content")
+    local pad=$(( target_inner - vis_len ))
+    (( pad < 0 )) && pad=0
+    local spaces=""
+    (( pad > 0 )) && spaces=$(printf '%*s' "$pad" '')
+    echo -e "${color_borde}│${C_RESET}${content}${spaces}${color_borde}│${C_RESET}"
+}
+
+imprimir_centro_caja() {
+    local content="$1"
+    local color_borde="${2:-$C_B_AZUL}"
+    local target_inner=$BOX_INNER
+    local vis_len
+    vis_len=$(ansi_ancho "$content")
+    local total_pad=$(( target_inner - vis_len ))
+    (( total_pad < 0 )) && total_pad=0
+    local left_pad=$(( total_pad / 2 ))
+    local right_pad=$(( total_pad - left_pad ))
+    local s_left="" s_right=""
+    (( left_pad > 0 )) && s_left=$(printf '%*s' "$left_pad" '')
+    (( right_pad > 0 )) && s_right=$(printf '%*s' "$right_pad" '')
+    echo -e "${color_borde}│${C_RESET}${s_left}${content}${s_right}${color_borde}│${C_RESET}"
+}
+
+imprimir_linea_info() {
+    local icono="$1"
+    local etiqueta="$2"
+    local separador="$3"
+    local valor="$4"
+    local color_borde="${5:-$C_B_AZUL}"
+    local ancho_etiqueta="${6:-16}"
+
+    local vis_etiq
+    vis_etiq=$(ansi_ancho "$etiqueta")
+    local pad_etiq=$(( ancho_etiqueta - vis_etiq ))
+    (( pad_etiq < 0 )) && pad_etiq=0
+    local sp_etiq=""
+    (( pad_etiq > 0 )) && sp_etiq=$(printf '%*s' "$pad_etiq" '')
+
+    local izq="${icono} ${C_B_BLANCO}${etiqueta}${sp_etiq} ${separador}${C_RESET} ${valor}"
+    imprimir_linea_caja "  $izq" "$color_borde"
+}
+
+_titulo_seccion() {
+    echo ""
+    echo -e " ${C_DORADO}◆${C_RESET} ${C_B_BLANCO}$1${C_RESET}"
+}
+
+# Helpers del formulario reactivo
+_UC_ETIQUETA=16
+_UC_PUNTOS="${C_GRIS}· · · · · · · · · · · · · · · · · · · ·${C_RESET}"
+
+_uc_valor() {
+    if [[ -n "$1" ]]; then
+        echo -e "${C_B_AMARILLO}$1${C_RESET}"
+    else
+        echo -e "$_UC_PUNTOS"
+    fi
+}
+
+_uc_consumo_display() {
+    if [[ -z "$U_GB" ]]; then
+        echo ""
+    elif [[ "$U_GB" -eq 0 ]] 2>/dev/null; then
+        echo "Ilimitado"
+    else
+        echo "${U_GB} GB"
+    fi
+}
+
+_uc_dibujar_formulario() {
+    local B_AZUL="$C_B_AZUL"
+    local err="$1"
+
+    _titulo_seccion "👤 CREAR USUARIO SSH / VPN"
+    _borde_caja top "◈ NUEVO USUARIO MAXINET ◈" "$B_AZUL"
+
+    imprimir_linea_info " 👤" "Usuario"    "┃" "$(_uc_valor "$U_USUARIO")" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 🔑" "Contraseña" "┃" "$(_uc_valor "$U_PASS")" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📅" "Vigencia"   "┃" "$(_uc_valor "${U_DIAS:+$U_DIAS días}")" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📶" "Conexiones" "┃" "$(_uc_valor "${U_LIMITE:+$U_LIMITE dispositivo(s)}")" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📦" "Consumo"    "┃" "$(_uc_valor "$(_uc_consumo_display)")" "$B_AZUL" "$_UC_ETIQUETA"
+
+    _borde_caja sep "" "$B_AZUL"
+    imprimir_linea_caja "  ${C_TURQUESA}✏️   Escribe el valor y presiona Enter · vacío = acepta defecto${C_RESET}" "$B_AZUL"
+    _borde_caja bottom "" "$B_AZUL"
+
+    [[ -n "$err" ]] && echo -e "\n ${C_B_ROJO}❌ $err${C_RESET}"
+    return 0
+}
+
+_uc_pedir_campos() {
+    # 1) Nombre de Usuario
+    while true; do
+        clear
+        _uc_dibujar_formulario "$U_ERR"
+        U_ERR=""
+        echo -ne " ${C_B_CIAN}👤 Nombre de usuario (letras, números, - y _):${C_RESET} "
+        read -r U_USUARIO
+        [[ -z "$U_USUARIO" ]] && { U_ERR="El nombre no puede estar vacío."; continue; }
+        if [[ ! "$U_USUARIO" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+            U_ERR="Solo letras, números, guiones y guiones bajos."
+            continue
+        fi
+        if id "$U_USUARIO" &>/dev/null; then
+            U_ERR="El usuario ya existe en el sistema."
+            continue
+        fi
         break
-        ;;
-esac
+    done
 
-done
+    # 2) Contraseña
+    clear
+    _uc_dibujar_formulario
+    echo -ne " ${C_B_CIAN}🔑 Contraseña (Enter = 123):${C_RESET} "
+    read -r U_PASS
+    [[ -z "$U_PASS" ]] && U_PASS="123"
+
+    # 3) Días de validez
+    clear
+    _uc_dibujar_formulario
+    echo -ne " ${C_B_CIAN}📅 Días de validez [30]:${C_RESET} "
+    read -r U_DIAS
+    [[ -z "$U_DIAS" ]] && U_DIAS="30"
+    if [[ ! "$U_DIAS" =~ ^[0-9]+$ ]] || [[ "$U_DIAS" -le 0 ]]; then
+        U_DIAS=30
+    fi
+
+    # 4) Límite de conexiones simultáneas
+    clear
+    _uc_dibujar_formulario
+    echo -ne " ${C_B_CIAN}📶 Conexiones simultáneas [1]:${C_RESET} "
+    read -r U_LIMITE
+    [[ -z "$U_LIMITE" ]] && U_LIMITE="1"
+    if [[ ! "$U_LIMITE" =~ ^[0-9]+$ ]] || [[ "$U_LIMITE" -lt 0 ]]; then
+        U_LIMITE=1
+    fi
+
+    # 5) Límite de consumo en GB
+    clear
+    _uc_dibujar_formulario
+    echo -ne " ${C_B_CIAN}📦 Límite de consumo GB (0 = Ilimitado) [0]:${C_RESET} "
+    read -r U_GB
+    [[ -z "$U_GB" ]] && U_GB="0"
+    if [[ ! "$U_GB" =~ ^[0-9]+$ ]] || [[ "$U_GB" -lt 0 ]]; then
+        U_GB=0
+    fi
+}
+
+_uc_dibujar_resumen() {
+    local B_AZUL="$C_B_AZUL"
+    local IP_PUB=$(cat "$BASE/.pub_ip" 2>/dev/null || curl -s --max-time 2 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')
+    local DOMINIO=$(cat "$BASE/dominio" 2>/dev/null || echo "${IP_PUB:-127.0.0.1}")
+
+    _titulo_seccion "📋 CONFIRMAR DATOS DEL USUARIO"
+    _borde_caja top "◈ RESUMEN DE LA CUENTA MAXINET ◈" "$B_AZUL"
+
+    imprimir_linea_info " 👤" "Usuario"    "┃" "${C_B_BLANCO}${U_USUARIO}${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 🔑" "Contraseña" "┃" "${C_B_BLANCO}${U_PASS}${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📅" "Expira"     "┃" "${C_B_BLANCO}${EXP_DATE} (${U_DIAS} días)${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📶" "Conexiones" "┃" "${C_B_BLANCO}${U_LIMITE} dispositivo(s)${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📦" "Consumo"    "┃" "${C_B_BLANCO}$(_uc_consumo_display)${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 🌐" "Servidor"   "┃" "${C_B_VERDE}${DOMINIO}${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+
+    _borde_caja sep "" "$B_AZUL"
+    imprimir_centro_caja "  ${C_B_VERDE}[S]${C_RESET} Crear  ·  ${C_B_AMARILLO}[E]${C_RESET} Editar  ·  ${C_B_ROJO}[X]${C_RESET} Cancelar  " "$B_AZUL"
+    _borde_caja bottom "" "$B_AZUL"
+    return 0
+}
+
+_uc_dibujar_exito() {
+    local B_AZUL="$C_B_AZUL"
+    local IP_PUB=$(cat "$BASE/.pub_ip" 2>/dev/null || curl -s --max-time 2 ifconfig.me 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}')
+    local DOMINIO=$(cat "$BASE/dominio" 2>/dev/null || echo "${IP_PUB:-127.0.0.1}")
+
+    _titulo_seccion "🎉 USUARIO CREADO CON ÉXITO"
+    _borde_caja top "◈ ✅ CREDENCIALES MAXINET ◈" "$B_AZUL"
+
+    imprimir_linea_info " 👤" "Usuario"      "┃" "${C_B_AMARILLO}${U_USUARIO}${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 🔑" "Contraseña"   "┃" "${C_B_AMARILLO}${U_PASS}${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 🌐" "Servidor"     "┃" "${C_B_VERDE}${DOMINIO}${C_RESET} (${IP_PUB})" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📅" "Expira"       "┃" "${C_B_BLANCO}${EXP_DATE} (${U_DIAS} días)${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📶" "Dispositivos" "┃" "${C_B_BLANCO}${U_LIMITE}${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+    imprimir_linea_info " 📦" "Consumo"      "┃" "${C_B_BLANCO}$(_uc_consumo_display)${C_RESET}" "$B_AZUL" "$_UC_ETIQUETA"
+
+    _borde_caja sep "🔌 PUERTOS DE CONEXIÓN" "$B_AZUL"
+    imprimir_linea_caja "   ${C_B_CIAN}SSH${C_RESET} 22 · ${C_B_CIAN}Dropbear${C_RESET} 90/109/143 · ${C_B_CIAN}SSL/TLS${C_RESET} 443 · ${C_B_CIAN}BadVPN${C_RESET} 7200/7300" "$B_AZUL"
+    imprimir_linea_caja "   ${C_B_CIAN}WebSocket${C_RESET} 80/8080 · ${C_B_CIAN}UDP Custom${C_RESET} 36712 · ${C_B_CIAN}ZiVPN${C_RESET} 5667" "$B_AZUL"
+    _borde_caja bottom "" "$B_AZUL"
+    return 0
+}
+
+crear_usuario_ssh() {
+    U_USUARIO=""; U_PASS=""; U_DIAS=""; U_LIMITE=""; U_GB=""; U_ERR=""
+    local EXP_DATE=""
+
+    _uc_pedir_campos
+
+    while true; do
+        EXP_DATE=$(date -d "+$U_DIAS days" +"%Y-%m-%d" 2>/dev/null || date -v+"${U_DIAS}"d +"%Y-%m-%d" 2>/dev/null)
+        clear
+        _uc_dibujar_resumen
+        echo ""
+        echo -ne " ${C_B_CIAN}Elige una opción [S/E/X]:${C_RESET} "
+        read -r OPC
+        OPC=$(echo "$OPC" | tr '[:upper:]' '[:lower:]' | tr -d ' ')
+        case "$OPC" in
+            s|si|sí) break ;;
+            e|edit|editar)
+                _uc_pedir_campos
+                ;;
+            x|c|cancelar|"")
+                clear
+                echo -e "\n ${C_B_AMARILLO}⚠️ Creación cancelada — no se creó ningún usuario.${C_RESET}\n"
+                sleep 2
+                return 0
+                ;;
+        esac
+    done
+
+    # Registrar shells para PAM
+    grep -qxF '/bin/false' /etc/shells 2>/dev/null || echo '/bin/false' >> /etc/shells
+    grep -qxF '/usr/sbin/nologin' /etc/shells 2>/dev/null || echo '/usr/sbin/nologin' >> /etc/shells
+
+    # Crear usuario de sistema para túneles VPN
+    useradd -M -s /bin/false -e "$EXP_DATE" "$U_USUARIO" 2>/dev/null || useradd -M -s /bin/false "$U_USUARIO" 2>/dev/null
+    echo "$U_USUARIO:$U_PASS" | chpasswd 2>/dev/null
+    usermod -U "$U_USUARIO" 2>/dev/null
+    chage -E "$EXP_DATE" "$U_USUARIO" 2>/dev/null
+
+    # Registrar en base de datos de Maxinet
+    sed -i "/^$U_USUARIO:/d" "$DB_USERS" 2>/dev/null
+    echo "$U_USUARIO:$U_PASS:$EXP_DATE:$U_LIMITE" >> "$DB_USERS"
+
+    # Si se especificó cuota GB, registrar en límites de tráfico
+    if [[ "$U_GB" -gt 0 ]] 2>/dev/null; then
+        local LIM_FILE="$BASE/trafico/limites_gb.db"
+        mkdir -p "$BASE/trafico" 2>/dev/null
+        touch "$LIM_FILE" 2>/dev/null
+        sed -i "/^$U_USUARIO:/d" "$LIM_FILE" 2>/dev/null
+        echo "$U_USUARIO:$U_GB" >> "$LIM_FILE"
+    fi
+
+    clear
+    _uc_dibujar_exito
+    echo ""
+    read -rp " Presione [Enter] para continuar..." _
+}
+
+# Ejecución principal
+crear_usuario_ssh

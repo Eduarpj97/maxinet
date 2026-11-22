@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.4
+# Maxinet Network - Premium Welcome Banner v2.5
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return

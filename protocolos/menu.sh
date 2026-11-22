@@ -242,7 +242,7 @@ mv_prow_center "${_B_ON} ${_SUM_ACT} activos${RESET}  ${GRAY}·${RESET}  ${_B_OF
 # Arriba, junto al resumen. Abajo las filas quedan libres
 # (solo bolita + emoji + nombre).
 # ============================================================
-mv_center "🔐22 📦U5667 🚪90·109·143 🔒443 ⚡7200·7300 🌊U36712 🐌53·5300 ☁️${XRAY_PORT:-443}"
+mv_center "🔐22 📦U5667 🚪90·109·143 🔒443 ⚡7200·7300 🌊U36712 ☁️${XRAY_PORT:-443}"
 mv_center "🌀U${HYSTERIA_PORT:-42726} 🛡U${WG_PORT:-51820} 🛰️${DTUNNEL_PORT:-4443}·${DTUNNEL_PORT2:-8081} 🧭53 🦑3128 🛠️10000 🤖gestion 🛸443·8080"
 mv_center "📡80·8443 🧵7300 🐋8388 🧩8082-8085 🗝️U${OPENVPN_PORT:-1194} 🕸️T${SOCKS5_PORT:-1080} 🧱443‡8883 🌐${WEB_PORT:-9617}"
 echo ""
@@ -255,7 +255,6 @@ SEL=$(nav_pick "→ ${PROTO_TITLE:-Protocolos}:" \
     "${SSL_S} 🔒 ${PROTO_SSL:-SSL/TLS}" \
     "${BAD_S} ⚡ ${PROTO_BADVPN:-BadVPN}" \
     "${UDP_S} 🌊 ${PROTO_UDP:-UDP Custom}" \
-    "${SLOW_S} 🐌 ${PROTO_SLOWDNS:-SlowDNS}" \
     "${XRAY_S} ☁️ ${PROTO_XRAY:-Xray · VMess/VLESS/Trojan}" \
     "${HY_S} 🌀 ${PROTO_HYSTERIA:-Hysteria}" \
     "${WG_S} 🛡 WireGuard" \
@@ -282,25 +281,24 @@ case "$SEL" in
 4) bash "$BASE/protocolos/ssl.sh" ; exec bash "$BASE/protocolos/menu.sh";;
 5) bash "$BASE/protocolos/badvpn.sh" ; exec bash "$BASE/protocolos/menu.sh";;
 6) bash "$BASE/protocolos/udpcustom.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-7) bash "$BASE/protocolos/slowdns.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-8) bash "$BASE/protocolos/v2ray.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-9) bash "$BASE/protocolos/hysteria.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-10) bash "$BASE/protocolos/wireguard.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-11) bash "$BASE/protocolos/dtunnel.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-12) bash "$BASE/protocolos/systemdns.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-13) bash "$BASE/protocolos/squid.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-14) bash "$BASE/protocolos/webmin.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-15) bash "$BASE/protocolos/xhttp.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-16) bash "$BASE/protocolos/bhttp.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-17) bash "$BASE/protocolos/btun.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-18) bash "$BASE/protocolos/shadowsocks.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-19) bash "$BASE/protocolos/payload.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-20) bash "$BASE/protocolos/openvpn.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-21) bash "$BASE/protocolos/socks5.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-22) bash "$BASE/protocolos/hcr.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-23) bash "$BASE/protocolos/web.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-24) bash "$BASE/protocolos/xui.sh" ; exec bash "$BASE/protocolos/menu.sh";;
-25) echo -e "${YELLOW}⚠️ ${PROTO_RESTART_WARN:-Reiniciar protocolos cortará tu conexión SSH}${RESET}"; read -n1 -r -p "$(trx 'Presione una tecla para continuar...')"; restart_protocols ;;
+7) bash "$BASE/protocolos/v2ray.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+8) bash "$BASE/protocolos/hysteria.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+9) bash "$BASE/protocolos/wireguard.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+10) bash "$BASE/protocolos/dtunnel.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+11) bash "$BASE/protocolos/systemdns.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+12) bash "$BASE/protocolos/squid.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+13) bash "$BASE/protocolos/webmin.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+14) bash "$BASE/protocolos/xhttp.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+15) bash "$BASE/protocolos/bhttp.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+16) bash "$BASE/protocolos/btun.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+17) bash "$BASE/protocolos/shadowsocks.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+18) bash "$BASE/protocolos/payload.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+19) bash "$BASE/protocolos/openvpn.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+20) bash "$BASE/protocolos/socks5.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+21) bash "$BASE/protocolos/hcr.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+22) bash "$BASE/protocolos/web.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+23) bash "$BASE/protocolos/xui.sh" ; exec bash "$BASE/protocolos/menu.sh";;
+24) echo -e "${YELLOW}⚠️ ${PROTO_RESTART_WARN:-Reiniciar protocolos cortará tu conexión SSH}${RESET}"; read -n1 -r -p "$(trx 'Presione una tecla para continuar...')"; restart_protocols ;;
 0) exec bash "$BASE/menu.sh" ;;
 *) echo -e "${RED}❌ ${PROTO_INVALID:-Opción inválida}${RESET}"; sleep 1; exec bash "$BASE/protocolos/menu.sh" ;;
 esac

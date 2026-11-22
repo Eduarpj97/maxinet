@@ -4,7 +4,7 @@
 #   MAXINET NETWORK — PREMIUM EDITION v5.5
 #   Panel de Control · Alto Rendimiento y Seguridad Total
 #   Diseño compacto tipo dashboard — 1 pantalla
-#   DESIGN SYSTEM NEBULA v2.4 (gradiente + barras % + separadores)
+#   DESIGN SYSTEM NEBULA v2.5 (gradiente + barras % + separadores)
 #=========================================================
 
 # Auto-fix CRLF from Windows uploads (self-healing)
@@ -106,7 +106,7 @@ status() {
 }
 
 progress_bar() {
-    # v5.5: Si el Design System NEBULA v2.4 está cargado, usa la barra
+    # v5.5: Si el Design System NEBULA v2.5 está cargado, usa la barra
     # con % real (mv_progress). Fallback clásico si no existe ui.sh.
     if command -v mv_progress >/dev/null 2>&1; then
         mv_progress "$1" 100
@@ -273,16 +273,15 @@ NET_TOTAL_SUM=$(human $((RX_TOTAL + TX_TOTAL)))
 # Estado de protocolos
 #=========================================================
 
-SVC_ARR=($(systemctl is-active ssh dropbear_custom haproxy udp-custom slowdns xray badvpn-udpgw-7200 zivpn 2>/dev/null))
+SVC_ARR=($(systemctl is-active ssh dropbear_custom haproxy udp-custom xray badvpn-udpgw-7200 zivpn 2>/dev/null))
 
 SSH_S=$(svc_icon 1 ssh)
 DROP_S=$(svc_icon 2 dropbear_custom)
 HA_S=$(svc_icon 3 haproxy)
 UDP_S=$(svc_icon 4 udp-custom)
-SLOW_S=$(svc_icon 5 slowdns)
-XRAY_S=$(svc_icon 6 xray)
-BAD_S=$(svc_icon 7 badvpn-udpgw-7200)
-ZIP_S=$(svc_icon 8 zivpn)
+XRAY_S=$(svc_icon 5 xray)
+BAD_S=$(svc_icon 6 badvpn-udpgw-7200)
+ZIP_S=$(svc_icon 7 zivpn)
 
 #---------------------------------------------------------
 # Protocolos EXTRA — detección real (systemd + binario)
@@ -333,7 +332,7 @@ timeout 3 ss -tnlp > /tmp/_mv_tcp_l 2>/dev/null
 timeout 3 ss -unp  > /tmp/_mv_udp 2>/dev/null
 timeout 3 ss -tnp  > /tmp/_mv_tcp 2>/dev/null
 
-UDP_C=0; BAD_C=0; ZIP_C=0; XRAY_C=0; SLOW_C=0
+UDP_C=0; BAD_C=0; ZIP_C=0; XRAY_C=0
 
 # UDP Custom
 if grep -q '"udp"' /tmp/_mv_udp_l 2>/dev/null; then
@@ -367,15 +366,9 @@ if grep -q 'xray' /tmp/_mv_tcp_l 2>/dev/null; then
     done
 fi
 
-# SlowDNS
-for P in 53 5300; do
-    C=$(awk -v p=":${P}" '$4 ~ p && $1 == "ESTAB" {c++} END{print c+0}' /tmp/_mv_tcp 2>/dev/null)
-    SLOW_C=$((SLOW_C + C))
-done
-
 rm -f /tmp/_mv_udp_l /tmp/_mv_tcp_l /tmp/_mv_udp /tmp/_mv_tcp
 
-TOTAL_CONN=$((SSH_CONN + DROP_CONN + UDP_C + BAD_C + ZIP_C + XRAY_C + SLOW_C))
+TOTAL_CONN=$((SSH_CONN + DROP_CONN + UDP_C + BAD_C + ZIP_C + XRAY_C))
 
 #=========================================================
 # Estado CDN
@@ -423,7 +416,7 @@ UPD_LV=$(tr -d ' \n' < "$BASE/version.txt" 2>/dev/null)
 MV_VER="$(tr -d ' \n\r' < "$BASE/version.txt" 2>/dev/null)"
 MV_VER="${MV_VER%.*}"
 [[ -n "$MV_VER" ]] && VERSION="$MV_VER"
-VERSION="${VERSION:-2.4}"
+VERSION="${VERSION:-2.5}"
 
 if declare -F mv_header >/dev/null 2>&1; then
     clear
@@ -577,11 +570,12 @@ SEL=$(nav_pick "► Opción:" \
     "🎫 ${MENU_ADDACCT:-Crear Cuenta Completa}" \
     "🆔 ${MENU_ADDXRAY:-Crear Usuario HWID}" \
     "🚀 ${MENU_PROTOCOLS_BTN:-Protocolos}" \
-    "🧰 ${MENU_TOOLS:-Herramientas}" \
+    "⚡ ${MENU_ZIPVPN:-ZiVPN Manager}" \
+    "📡 ${MENU_MONITOR:-Monitor Conectados (En Vivo)}" \
+    "🚀 ${MENU_OPTIMIZER:-Optimizador de Red}" \
+    "📊 ${MENU_TRAFFIC:-Tráfico & Consumo (GB)}" \
     "☁️ ${MENU_XRAY:-Xray/V2Ray}" \
-    "📦 ${MENU_ZIPVPN:-ZiVPN}" \
-    "🌐 ${MENU_SLOWDNS:-SlowDNS}" \
-    "📊 ${MENU_TRAFFIC:-Consumo de Red}" \
+    "🧰 ${MENU_TOOLS:-Herramientas}" \
     "🛠 ${MENU_UPDATE:-Update / Remover}" \
     "📞 ${MENU_SUPPORT:-Soporte Maxinet}" \
     "🌐 ${MENU_LANGUAGE:-Idioma}" \
@@ -594,15 +588,15 @@ case "$SEL" in
     3)  OPCION="21" ;;   # Crear Cuenta Completa (SSH + Xray + ZiVPN)
     4)  OPCION="22" ;;   # Crear Usuario HWID
     5)  OPCION="2"  ;;   # Protocolos
-    6)  OPCION="3"  ;;   # Herramientas
-    7)  OPCION="11" ;;   # Xray/V2Ray
-    8)  OPCION="12" ;;   # ZiVPN
-    9)  OPCION="13" ;;   # SlowDNS
-    10) OPCION="5"  ;;   # Consumo de Red
-    11) OPCION="9"  ;;   # Update / Remover
-    12) OPCION="18" ;;   # Soporte
-    13) OPCION="99" ;;   # Idioma
-    14) OPCION="0"  ;;   # Salir
+    6)  OPCION="12" ;;   # ZiVPN Manager
+    7)  OPCION="10" ;;   # Monitor Conectados (En Vivo)
+    8)  OPCION="6"  ;;   # Optimizador de Red
+    9)  OPCION="5"  ;;   # Tráfico & Consumo (GB)
+    10) OPCION="11" ;;   # Xray/V2Ray
+    11) OPCION="3"  ;;   # Herramientas
+    12) OPCION="9"  ;;   # Update / Remover
+    13) OPCION="18" ;;   # Soporte
+    14) OPCION="99" ;;   # Idioma
     15) OPCION="0"  ;;   # Salir
     0)  OPCION="0"  ;;   # ESC -> Salir
     *)  OPCION="0"  ;;   # defensivo: nunca caer en un bloque destructivo
@@ -922,6 +916,19 @@ EOF
     esac
 ;;
 
+10)
+    clear
+    if [[ -f "$BASE/herramientas/monitor_en_vivo.sh" ]]; then
+        bash "$BASE/herramientas/monitor_en_vivo.sh"
+    elif [[ -f "$BASE/herramientas/monitor.sh" ]]; then
+        bash "$BASE/herramientas/monitor.sh"
+    else
+        echo -e "${RED}❌ monitor_en_vivo.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
+        sleep 2
+    fi
+    exec bash "$BASE/menu.sh"
+;;
+
 11)
     clear
     if [[ -f "$BASE/protocolos/v2ray.sh" ]]; then
@@ -939,17 +946,6 @@ EOF
         FROM_MAIN=1 bash "$BASE/protocolos/zipvpn.sh"
     else
         echo -e "${RED}❌ zipvpn.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
-        sleep 2
-        exec bash "$BASE/menu.sh"
-    fi
-;;
-
-13)
-    clear
-    if [[ -f "$BASE/protocolos/slowdns.sh" ]]; then
-        FROM_MAIN=1 bash "$BASE/protocolos/slowdns.sh"
-    else
-        echo -e "${RED}❌ slowdns.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
         sleep 2
         exec bash "$BASE/menu.sh"
     fi
