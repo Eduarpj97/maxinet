@@ -14,8 +14,6 @@ DB_USERS="$BASE/usuarios.db"
 DIR_TRAFICO="$BASE/trafico"
 DIR_ZIVPN="/etc/zivpn"
 ZIVPN_CONEX="$DIR_ZIVPN/conexiones.db"
-BASELINE="$DIR_TRAFICO/iface_dia.db"
-
 mkdir -p "$BASE" "$DIR_TRAFICO" "$DIR_ZIVPN" 2>/dev/null
 touch "$DB_USERS" "$ZIVPN_CONEX" 2>/dev/null
 [[ -f "$DB_USERS" ]] || DB_USERS="/dev/null"
@@ -48,21 +46,36 @@ case "$ARCH" in
 esac
 
 _barra_progreso() {
+    local valor="${1:-0}" maximo="${2:-1}" ancho="${3:-20}"
+    local color_lleno="${4:-\\033[1;36m}" color_vacio="${5:-\\033[38;5;240m}"
+    [[ "$valor" =~ ^[0-9]+$ ]] || valor=0
+    [[ "$maximo" =~ ^[0-9]+$ ]] || maximo=1
+    (( maximo <= 0 )) && maximo=1
+    (( valor < 0 )) && valor=0
+    local progreso=$(( (valor * ancho) / maximo ))
+    (( progreso > ancho )) && progreso=$ancho
+    (( progreso < 0 )) && progreso=0
+    local barra="" i
+    for (( i=0; i<progreso; i++ )); do barra+="█"; done
+    for (( i=progreso; i<ancho; i++ )); do barra+="░"; done
+    echo -ne "${color_lleno}${barra}${RS}"
+}
+
+# Barra de progreso por porcentaje (para CPU/RAM)
+_barra_pct() {
     local pct="${1:-0}" ancho="${2:-20}"
     [[ "$pct" =~ ^[0-9]+$ ]] || pct=0
-    [[ "$ancho" =~ ^[0-9]+$ ]] || ancho=20
     (( pct > 100 )) && pct=100
     (( pct < 0 )) && pct=0
-    local filled=$(( pct * ancho / 100 ))
-    local empty=$(( ancho - filled ))
-    local bar=""
     local col="$GR"
     (( pct >= 60 )) && col="$YW"
     (( pct >= 85 )) && col="$RD"
-    local i
+    local filled=$(( pct * ancho / 100 ))
+    local empty=$(( ancho - filled ))
+    local bar="" i
     for (( i=0; i<filled; i++ )); do bar+="█"; done
     for (( i=0; i<empty; i++ )); do bar+="░"; done
-    printf "${col}%s${RS} %3d%%" "$bar" "$pct"
+    echo -ne "${col}${bar}${RS}"
 }
 
 _fmt_bytes() {
@@ -79,12 +92,12 @@ _fmt_bytes() {
     fi
 }
 
-_srv_estado() {
-    local activo="${1:-0}" proto="${2:-}" puerto="${3:-}"
-    if [[ "$activo" -eq 1 ]]; then
-        printf "${GR}●${RS} %-12s : ${WH}%-14s${RS} ${GR}EN FUNCIONAMIENTO${RS}" "$proto" "$puerto"
+_srv_icono() {
+    local activo="${1:-0}"
+    if [[ "$activo" -gt 0 ]]; then
+        echo -e "${GR}●${RS}"
     else
-        printf "${RD}●${RS} %-12s : ${WH}%-14s${RS} ${RD}DETENIDO${RS}" "$proto" "$puerto"
+        echo -e "${RD}○${RS}"
     fi
 }
 
@@ -890,118 +903,342 @@ mostrar_conectados() {
 
         # Tráfico de interfaz del día
         local IFACE=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++)if($i=="dev"){print $(i+1);exit}}')
+        [[ -z "$IFACE" ]] && IFACE=$(timeout ${TO}s ip link show up 2>/dev/null | awk -F': ' '/state UP/ && $2!="lo"{print $2;exit}')
         [[ -z "$IFACE" ]] && IFACE="eth0"
-        local RX_RAW=0 TX_RAW=0
-        if [[ -r /proc/net/dev ]]; then
-            read -r RX_RAW TX_RAW < <(awk -v iface="${IFACE}:" '$1 == iface { print $2, $10 }' /proc/net/dev 2>/dev/null)
+
+        local cur_rx cur_tx
+        cur_rx=$(cat /sys/class/net/"$IFACE"/statistics/rx_bytes 2>/dev/null || echo 0)
+        cur_tx=$(cat /sys/class/net/"$IFACE"/statistics/tx_bytes 2>/dev/null || echo 0)
+        [[ "$cur_rx" =~ ^[0-9]+$ ]] || cur_rx=0
+        [[ "$cur_tx" =~ ^[0-9]+$ ]] || cur_tx=0
+
+        local HOY_DATE=$(date +%Y-%m-%d)
+        local snap_dir="$DIR_TRAFICO/snapshots"
+        local d_rx=0 d_tx=0
+
+        if [[ -d "$snap_dir" ]] || mkdir -p "$snap_dir" 2>/dev/null; then
+            local snap_file="$snap_dir/${HOY_DATE}.snap"
+            [[ ! -s "$snap_file" ]] && echo "$(date +%H:%M):${cur_rx}:${cur_tx}" >> "$snap_file" 2>/dev/null
+            local base_rx base_tx
+            base_rx=$(head -1 "$snap_file" 2>/dev/null | cut -d: -f2)
+            base_tx=$(head -1 "$snap_file" 2>/dev/null | cut -d: -f3)
+            if [[ -n "$base_rx" && "$base_rx" =~ ^[0-9]+$ && -n "$base_tx" && "$base_tx" =~ ^[0-9]+$ ]]; then
+                d_rx=$(( cur_rx - base_rx ))
+                d_tx=$(( cur_tx - base_tx ))
+                [[ "$d_rx" -lt 0 ]] && d_rx=0
+                [[ "$d_tx" -lt 0 ]] && d_tx=0
+            fi
         fi
-        [[ -z "$RX_RAW" ]] && RX_RAW=0
-        [[ -z "$TX_RAW" ]] && TX_RAW=0
-        local B_RX=0 B_TX=0
-        if [[ -f "$BASELINE" ]]; then
-            read -r B_RX B_TX < "$BASELINE" 2>/dev/null
+        local d_total=$(( d_rx + d_tx ))
+
+        # Total VPS persistente (acumulado histórico + sesión actual)
+        local total_file="$DIR_TRAFICO/total.vps"
+        local t_rx=0 t_tx=0 last_rx=0 last_tx=0
+        if [[ -s "$total_file" ]]; then
+            IFS=: read -r t_rx t_tx last_rx last_tx _ < "$total_file" 2>/dev/null || true
+            [[ "$t_rx" =~ ^[0-9]+$ ]] || t_rx=0
+            [[ "$t_tx" =~ ^[0-9]+$ ]] || t_tx=0
+            [[ "$last_rx" =~ ^[0-9]+$ ]] || last_rx=0
+            [[ "$last_tx" =~ ^[0-9]+$ ]] || last_tx=0
+            if [[ "$cur_rx" -lt "$last_rx" || "$cur_tx" -lt "$last_tx" ]]; then
+                t_rx=$(( t_rx + last_rx ))
+                t_tx=$(( t_tx + last_tx ))
+            fi
         fi
-        [[ "$B_RX" =~ ^[0-9]+$ ]] || B_RX=0
-        [[ "$B_TX" =~ ^[0-9]+$ ]] || B_TX=0
-        local D_RX=$(( RX_RAW >= B_RX ? RX_RAW - B_RX : RX_RAW ))
-        local D_TX=$(( TX_RAW >= B_TX ? TX_RAW - B_TX : TX_RAW ))
-        local D_TOT=$(( D_RX + D_TX ))
-        local TOT_VPS=$(( RX_RAW + TX_RAW ))
+        local vps_total=$(( t_rx + cur_rx + t_tx + cur_tx ))
+        echo "${t_rx}:${t_tx}:${cur_rx}:${cur_tx}:$(date +%s)" > "$total_file" 2>/dev/null
 
         # ═════════════════════════════════════════════════════════════════
-        # RENDERIZADO VISUAL MAXINET NEBULA
+        # RENDERIZADO VISUAL — DISEÑO MAXINET (IDÉNTICO A ABBIENET)
         # ═════════════════════════════════════════════════════════════════
-        if declare -F mv_brand_header >/dev/null 2>&1; then
-            mv_brand_header "📡 MONITOR DE CONEXIONES EN VIVO" "v3.0 · 100% Datos Reales del Kernel"
-        else
+
+        # Totales globales
+        local TOTAL=$(( UDP_C + ZIVPN_USR + BADVPN_ACTIVOS + TOTAL_SSH ))
+        local MAX_CAPACITY=50
+
+        # DROPBEAR PORTS (para mostrar en servicios)
+        local DROPBEAR_PORTS=""
+        [[ -f "/etc/default/dropbear" ]] && DROPBEAR_PORTS=$(grep -oP 'DROPBEAR_PORT=\K[0-9]+' /etc/default/dropbear 2>/dev/null | paste -sd, -)
+        [[ -z "$DROPBEAR_PORTS" ]] && DROPBEAR_PORTS="90,109,143"
+
+        # Contraseñas y tokens ZiVPN (inventario completo)
+        local -a ZIVPN_PASS_LIST=()
+        if [[ -f "$DIR_ZIVPN/config.json" ]]; then
+            mapfile -t ZIVPN_PASS_LIST < <(jq -r '(.auth.config[]?, .passwords[]?, .config[]?)' "$DIR_ZIVPN/config.json" 2>/dev/null | grep -v '^null$' | sort -u)
+        fi
+        if [[ ${#ZIVPN_PASS_LIST[@]} -eq 0 && -f "$DIR_ZIVPN/caducidad.db" ]]; then
+            mapfile -t ZIVPN_PASS_LIST < <(cut -d: -f1 "$DIR_ZIVPN/caducidad.db" 2>/dev/null | grep -v '^$' | sort -u)
+        fi
+
+        # ┌─── BARRA DE ESTADO EN VIVO ───┐
+        echo ""
+        printf "  ${GR}●${RS} ${WH}EN VIVO${RS}  ${GY}│${RS}  ${WH}%s${RS}  ${GY}│${RS}  ⏱ ${CY}%s${RS}  ${GY}│${RS}  🖥 ${TQ}%s${RS}\n" "$HOY" "$UPTIME_STR" "$HOSTNAME_SRV"
+        echo ""
+
+        # ┌─── CONEXIONES ACTIVAS ───┐
+        echo -e "  ${GY}─── ${WH}CONEXIONES ACTIVAS${RS} ${GY}─────────────────────────────────────────────${RS}"
+        echo ""
+        local TOTAL_COLOR="$GR"
+        [[ "$TOTAL" -ge 20 ]] && TOTAL_COLOR="$YW"
+        [[ "$TOTAL" -ge 40 ]] && TOTAL_COLOR="$OR"
+        [[ "$TOTAL" -ge 50 ]] && TOTAL_COLOR="$RD"
+        printf "               ${DK}┌────────────────────────────────────┐${RS}\n"
+        printf "               ${DK}│${RS}     ${TOTAL_COLOR}  ███  ${WH}TOTAL: ${TOTAL_COLOR}%-3s${RS} ${GY}cliente(s)${RS}   ${DK}│${RS}\n" "$TOTAL"
+        printf "               ${DK}│${RS}     ${TOTAL_COLOR}  ███  ${RS}                        ${DK}│${RS}\n"
+        printf "               ${DK}└────────────────────────────────────┘${RS}\n"
+        printf "  ${GY}desglose: ${WH}udp ${UDP_C} ${GY}· ${WH}zivpn ${ZIVPN_USR} ${GY}· ${WH}badvpn ${BADVPN_ACTIVOS} ${GY}· ${WH}ssh ${TOTAL_SSH}${RS}\n"
+        echo ""
+
+        # ┌─── SERVICIOS ───┐
+        echo -e "  ${GY}─── ${WH}SERVICIOS${RS} ${GY}──────────────────────────────────────────────────────${RS}"
+        echo ""
+
+        # UDP Custom
+        local udp_icon=$(_srv_icono $UDP_SVC_ACTIVE)
+        local udp_bar=$(_barra_progreso $UDP_C $MAX_CAPACITY 15 "\\033[1;36m")
+        printf "   ${udp_icon} ${CY}%-12s${RS} ${GY}%-11s${RS} ${WH}%2s${RS} ${GY}%s${RS}  %s\n" \
+            "UDP Custom" ":${UDP_CUSTOM_PORT}" "$UDP_C" "activo(s) " "$udp_bar"
+
+        # ZiVPN
+        local zv_icon=$(_srv_icono $ZIVPN_SVC_ACTIVE)
+        local zv_bar=$(_barra_progreso $ZIVPN_USR $MAX_CAPACITY 15 "\\033[1;35m")
+        printf "   ${zv_icon} ${MG}%-12s${RS} ${GY}%-11s${RS} ${WH}%2s${RS} ${GY}%s${RS}  %s\n" \
+            "ZiVPN (UDP)" ":${ZIVPN_PORT}" "$ZIVPN_USR" "en línea  " "$zv_bar"
+
+        # BadVPN
+        local bv_icon=$(_srv_icono $(( BADVPN_ACTIVOS > 0 ? 1 : 0 )))
+        local bv_bar=$(_barra_progreso $BADVPN_ACTIVOS $MAX_CAPACITY 15 "\\033[38;5;208m")
+        printf "   ${bv_icon} ${OR}%-12s${RS} ${GY}%-11s${RS} ${WH}%2s${RS} ${GY}%s${RS}  %s\n" \
+            "BadVPN Gate" ":7100-9900" "$BADVPN_ACTIVOS" "túnel(es) " "$bv_bar"
+
+        # SSH / Dropbear
+        local ssh_active=0
+        [[ "$TOTAL_SSH" -gt 0 ]] && ssh_active=1
+        local ssh_icon=$(_srv_icono $ssh_active)
+        local ssh_bar=$(_barra_progreso $TOTAL_SSH $MAX_CAPACITY 15 "\\033[1;32m")
+        printf "   ${ssh_icon} ${GR}%-12s${RS} ${GY}%-11s${RS} ${WH}%2s${RS} ${GY}%s${RS}  %s\n" \
+            "SSH/Drop" ":${DROPBEAR_PORTS}" "$TOTAL_SSH" "sesión(es)" "$ssh_bar"
+        echo ""
+
+        # Resumen de cuentas SSH registradas
+        printf "   ${GY}👥 Cuentas SSH registradas : ${WH}%s${RS} ${GY}(%s en línea)${RS}\n" "$TOTAL_CUENTAS_SSH" "${#SSH_USERS_ONLINE[@]}"
+        echo ""
+
+        # ┌─── PANEL: UDP CUSTOM ───┐
+        echo -e "  ${GY}─── ${CY}🚀 UDP CUSTOM${RS} ${GY}· Estado, Sesiones y Credenciales ────────────────${RS}"
+        echo ""
+        if [[ "$CONEXIONES_DISP" -eq 0 && "$UDP_SVC_ACTIVE" -eq 1 ]]; then
+            echo -e "      ${RD}⚠ herramientas/conexiones.sh NO está cargado.${RS}"
+            echo -e "      ${GY}Ejecute la actualización del script desde el menú principal.${RS}"
             echo ""
-            echo -e "  ${BL}╔══════════════════════════════════════════════════════════════════════╗${RS}"
-            echo -e "  ${BL}║${RS}        ${GD}⟐  M A X I N E T   N E T W O R K   v3.0  ⟐${RS}                     ${BL}║${RS}"
-            echo -e "  ${BL}║${RS}              ${CY}Monitor de Conexiones · 100% Datos Reales${RS}                 ${BL}║${RS}"
-            echo -e "  ${BL}╚══════════════════════════════════════════════════════════════════════╝${RS}"
+        elif [[ "$UDP_INSTALADO" -eq 0 ]]; then
+            echo -e "      ${GY}UDP Custom no está instalado en este servidor.${RS}"
+            echo ""
+        else
+            if [[ "$UDP_SVC_ACTIVE" -gt 0 ]]; then
+                printf "   ${GR}●${RS} ${WH}Estado del Servicio :${RS} ${GR}EN FUNCIONAMIENTO${RS} ${GY}(Puerto UDP :%s)${RS}\n" "$UDP_CUSTOM_PORT"
+            else
+                printf "   ${RD}○${RS} ${WH}Estado del Servicio :${RS} ${RD}DETENIDO / INACTIVO${RS}\n"
+            fi
+            printf "   ${CY}⚡${RS} ${WH}Usuarios conectados :${RS} ${YW}%s${RS} ${GY}IP(s) conectada(s) · %s usuario(s) en línea${RS}\n" "$UDP_C" "$UDP_USR_ON"
+            echo ""
+
+            if [[ ${#UDP_GROUPS_UI[@]} -gt 0 ]]; then
+                UDP_TABLA_IPS_ON="$UDP_C"
+                _udp_custom_pintar_tabla "${UDP_GROUPS_UI[@]}"
+                echo ""
+            fi
+            if [[ ${#UDP_SINREG[@]} -gt 0 ]]; then
+                local usreg
+                for usreg in "${UDP_SINREG[@]}"; do
+                    printf "      ${GY}● %-18s viva · sin usuario/contraseña registrados${RS}\n" "$usreg"
+                done
+                echo ""
+            fi
+            if [[ ${#UDP_GROUPS[@]} -eq 0 && ${#UDP_SINREG[@]} -eq 0 ]]; then
+                echo -e "      ${GY}Sin conexiones UDP Custom con evidencia real.${RS}"
+                echo ""
+            fi
+
+            # Tabla de credenciales SSH (paridad con ZiVPN)
+            if [[ ${#ALL_SSH_USERS[@]} -gt 0 ]]; then
+                echo -e "   ${GY}┌────┬─────────────────────┬──────────────┬────────────┐${RS}"
+                echo -e "   ${GY}│${RS} ${WH}ID${RS} ${GY}│${RS} ${WH}Usuario/SSH${RS}         ${GY}│${RS} ${WH}Expiración${RS}   ${GY}│${RS} ${WH}Límite${RS}     ${GY}│${RS}"
+                echo -e "   ${GY}├────┼─────────────────────┼──────────────┼────────────┤${RS}"
+                local uid=1
+                local -a ssh_sorted=()
+                mapfile -t ssh_sorted < <(printf '%s\n' "${ALL_SSH_USERS[@]}" | sort -u)
+                for su in "${ssh_sorted[@]}"; do
+                    local exp_val="Ilimitado" lim_val="Ilimitado"
+                    if [[ -f "$DB_USERS" ]]; then
+                        local u_line
+                        u_line=$(grep "^${su}:" "$DB_USERS" 2>/dev/null | head -1)
+                        if [[ -n "$u_line" ]]; then
+                            local _p _e _l
+                            IFS=: read -r _ _p _e _l _ <<< "$u_line"
+                            _e=$(echo "$_e" | tr -d ' \t\r\n')
+                            _l=$(echo "$_l" | tr -d ' \t\r\n')
+                            [[ -n "$_e" ]] && exp_val="$_e"
+                            if [[ -n "$_l" && "$_l" != "0" ]]; then
+                                lim_val="${_l} disp"
+                            fi
+                        fi
+                    fi
+                    printf "   ${GY}│${RS} ${GD}%2s${RS} ${GY}│${RS} ${YW}%-19s${RS} ${GY}│${RS} ${CY}%-12s${RS} ${GY}│${RS} ${GR}%-10s${RS} ${GY}│${RS}\n" \
+                        "$uid" "$su" "$exp_val" "$lim_val"
+                    uid=$(( uid + 1 ))
+                done
+                echo -e "   ${GY}└────┴─────────────────────┴──────────────┴────────────┘${RS}"
+                echo ""
+            fi
+        fi
+
+        # ┌─── PANEL: ZIVPN ───┐
+        echo -e "  ${GY}─── ${MG}⚡ ZIVPN${RS} ${GY}· Estado, Sesiones y Credenciales ────────────────────${RS}"
+        echo ""
+
+        if [[ "$ZIVPN_SVC_ACTIVE" -gt 0 ]]; then
+            printf "   ${GR}●${RS} ${WH}Estado del Servicio :${RS} ${GR}EN FUNCIONAMIENTO${RS} ${GY}(Puerto UDP :%s)${RS}\n" "$ZIVPN_PORT"
+        else
+            printf "   ${RD}○${RS} ${WH}Estado del Servicio :${RS} ${RD}DETENIDO / INACTIVO${RS}\n"
+        fi
+        printf "   ${MG}⚡${RS} ${WH}Usuarios conectados :${RS} ${YW}%s${RS} ${GY}conectado(s) · %s contraseña(s) en línea${RS}\n" "$ZIVPN_USR" "$ZIVPN_PASS_ON"
+        echo ""
+
+        if [[ "$CONEXIONES_DISP" -eq 0 && "$ZIVPN_SVC_ACTIVE" -gt 0 ]]; then
+            echo -e "   ${RD}⚠ herramientas/conexiones.sh NO está cargado.${RS}"
+            echo ""
+        elif [[ -f "$DIR_ZIVPN/config.json" ]]; then
+            if [[ "$ZIVPN_SVC_ACTIVE" -eq 1 && ${#ZIVPN_GROUPS[@]} -gt 0 ]]; then
+                if declare -F zivpn_pintar_tabla >/dev/null 2>&1; then
+                    printf '%s\n' "${ZIVPN_GROUPS[@]}" | zivpn_pintar_tabla 3 "kernel"
+                fi
+            fi
+            echo ""
+            echo -e "   ${GY}[K] purgar flujos ZiVPN ociosos (timeout residual ≤5 s; los vivos NO se tocan)${RS}"
+            if [[ ! -s "$DIR_ZIVPN/conexiones.db" ]]; then
+                echo ""
+                echo -e "   ${GY}⚠ /etc/zivpn/conexiones.db vacío: active el auth mode=command y reconecte${RS}"
+                echo -e "     ${GY}los clientes para registrar cada conexión con su contraseña real.${RS}"
+            fi
+            if [[ -n "$K_MSG" ]]; then
+                if [[ "$K_MSG" == "err" ]]; then
+                    echo -e "   ${RD}⚠ Purga no disponible: conntrack sin soporte -D${RS}"
+                else
+                    echo -e "   ${GY}⚙ [K] ${K_MSG} flujo(s) ZiVPN ocioso(s) purgado(s) del kernel${RS}"
+                fi
+                K_MSG=""
+            fi
+            echo ""
+        else
+            if [[ "$ZIVPN_SVC_ACTIVE" -gt 0 ]]; then
+                echo -e "   ${GY}┌──────────────────────────────────────────────────────────────┐${RS}"
+                echo -e "   ${GY}│${RS}  ${GR}●${RS} ${WH}Servicio en funcionamiento${RS} · ${GY}Esperando usuarios (0 activas) ${GY}│${RS}"
+                echo -e "   ${GY}└──────────────────────────────────────────────────────────────┘${RS}"
+            else
+                echo -e "   ${GY}┌──────────────────────────────────────────────────────────────┐${RS}"
+                echo -e "   ${GY}│${RS}  ${RD}○${RS} ${GY}Servicio detenido · Inicie ZiVPN desde el menú principal    │${RS}"
+                echo -e "   ${GY}└──────────────────────────────────────────────────────────────┘${RS}"
+            fi
             echo ""
         fi
 
-        [[ -n "$K_MSG" ]] && { echo -e "  $K_MSG"; echo ""; K_MSG=""; }
-
-        # SERVICIOS Y RESUMEN
-        echo -e "  ${CY}─── 🚀 ESTADO DE PROTOCOLOS VPN ───────────────────────────────────────${RS}"
-        echo -e "   $(_srv_estado "$UDP_SVC_ACTIVE" "UDP Custom" ":36712")    ${WH}${UDP_C} activo(s)${RS}    $(_barra_progreso $(( UDP_C * 10 )) 12)"
-        echo -e "   $(_srv_estado "$ZIVPN_SVC_ACTIVE" "ZiVPN (UDP)" ":5667")     ${WH}${ZIVPN_USR} en línea${RS}     $(_barra_progreso $(( ZIVPN_USR * 10 )) 12)"
-        echo -e "   $(_srv_estado $(( BADVPN_ACTIVOS > 0 ? 1 : 0 )) "BadVPN Gate" ":7100-9900")  ${WH}${BADVPN_ACTIVOS} túnel(es)${RS}   $(_barra_progreso $(( BADVPN_ACTIVOS * 10 )) 12)"
-        echo -e "   $(_srv_estado $(( TOTAL_SSH > 0 ? 1 : 0 )) "OpenSSH/Drop" ":22/90")       ${WH}${TOTAL_SSH} sesión(es)${RS}  $(_barra_progreso $(( TOTAL_SSH * 10 )) 12)"
-        echo ""
-        echo -e "   ${WH}👥 Cuentas SSH registradas : ${TOTAL_CUENTAS_SSH} (${#SSH_USERS_ONLINE[@]} en línea)${RS}"
-        echo ""
-
-        # PANEL UDP CUSTOM
-        echo -e "  ${CY}─── 🚀 UDP CUSTOM · Estado, Sesiones y Credenciales ───────────────────${RS}"
-        echo -e "   ${GR}●${RS} Estado del Servicio : $([[ $UDP_SVC_ACTIVE -eq 1 ]] && echo -e "${GR}EN FUNCIONAMIENTO (Puerto :${UDP_CUSTOM_PORT})${RS}" || echo -e "${RD}DETENIDO${RS}")"
-        echo -e "   ${WH}⚡ Usuarios conectados : ${UDP_C} IP(s) conectada(s) · ${UDP_USR_ON} usuario(s) en línea${RS}"
-        echo ""
-
-        if [[ "$UDP_INSTALADO" -eq 1 && ${#UDP_GROUPS_UI[@]} -gt 0 ]]; then
-            _udp_custom_pintar_tabla "${UDP_GROUPS_UI[@]}"
-        elif [[ "$UDP_INSTALADO" -eq 1 ]]; then
-            echo -e "   ${GY}┌──────────────────┬──────────┬─────────────────────┬────────────────────┐${RS}"
-            echo -e "   ${GY}│${RS} ${WH}USUARIO SSH     ${RS} ${GY}│${RS} ${WH}DISP.   ${RS} ${GY}│${RS} ${WH}ÚLTIMA CONEXIÓN     ${RS} ${GY}│${RS} ${WH}ESTADO             ${RS} ${GY}│${RS}"
-            echo -e "   ${GY}├──────────────────┼──────────┼─────────────────────┼────────────────────┤${RS}"
-            echo -e "   ${GY}│${RS} ${GY}(sin sesiones registradas en la ventana actual)${RS}"
-            echo -e "   ${GY}└──────────────────┴──────────┴─────────────────────┴────────────────────┘${RS}"
-        else
-            echo -e "   ${GY}· UDP Custom no instalado en este servidor${RS}"
+        # Tabla de credenciales ZiVPN
+        if [[ ${#ZIVPN_PASS_LIST[@]} -gt 0 ]]; then
+            echo -e "   ${GY}┌────┬─────────────────────┬──────────────┬────────────┐${RS}"
+            echo -e "   ${GY}│${RS} ${WH}ID${RS} ${GY}│${RS} ${WH}Contraseña/Token${RS}    ${GY}│${RS} ${WH}Expiración${RS}   ${GY}│${RS} ${WH}Límite${RS}     ${GY}│${RS}"
+            echo -e "   ${GY}├────┼─────────────────────┼──────────────┼────────────┤${RS}"
+            local zid=1
+            for zp in "${ZIVPN_PASS_LIST[@]}"; do
+                local zp_exp="Ilimitado" zp_lim="Ilimitado"
+                [[ -f "$DIR_ZIVPN/caducidad.db" ]] && {
+                    local exp_found
+                    exp_found=$(grep "^${zp}:" "$DIR_ZIVPN/caducidad.db" 2>/dev/null | cut -d: -f2)
+                    [[ -n "$exp_found" ]] && zp_exp="$exp_found"
+                }
+                [[ -f "$DIR_ZIVPN/limites.db" ]] && {
+                    local lim_found
+                    lim_found=$(grep "^${zp}:" "$DIR_ZIVPN/limites.db" 2>/dev/null | cut -d: -f2)
+                    [[ -n "$lim_found" ]] && zp_lim="${lim_found} disp"
+                }
+                printf "   ${GY}│${RS} ${GD}%2s${RS} ${GY}│${RS} ${YW}%-19s${RS} ${GY}│${RS} ${CY}%-12s${RS} ${GY}│${RS} ${GR}%-10s${RS} ${GY}│${RS}\n" \
+                    "$zid" "$zp" "$zp_exp" "$zp_lim"
+                zid=$(( zid + 1 ))
+            done
+            echo -e "   ${GY}└────┴─────────────────────┴──────────────┴────────────┘${RS}"
+            echo ""
         fi
+
+        # ┌─── TRÁFICO DEL DÍA ───┐
+        echo -e "  ${GY}─── ${YW}📊 TRÁFICO DEL DÍA${RS} ${GY}(desde 00:00) ──────────────────────────────${RS}"
         echo ""
 
-        # PANEL ZIVPN
-        echo -e "  ${CY}─── ⚡ ZIVPN · Estado, Sesiones y Credenciales ─────────────────────────${RS}"
-        echo -e "   ${GR}●${RS} Estado del Servicio : $([[ $ZIVPN_SVC_ACTIVE -eq 1 ]] && echo -e "${GR}EN FUNCIONAMIENTO (Puerto :${ZIVPN_PORT})${RS}" || echo -e "${RD}DETENIDO${RS}")"
-        echo -e "   ${WH}⚡ Usuarios conectados : ${ZIVPN_USR} conectado(s) · ${ZIVPN_PASS_ON} contraseña(s) en línea${RS}"
-        echo ""
+        local d_rx_fmt=$(_fmt_bytes $d_rx)
+        local d_tx_fmt=$(_fmt_bytes $d_tx)
+        local d_total_fmt=$(_fmt_bytes $d_total)
+        local vps_total_fmt=$(_fmt_bytes $vps_total)
 
-        if [[ "$ZIVPN_SVC_ACTIVE" -eq 1 && ${#ZIVPN_GROUPS[@]} -gt 0 ]]; then
-            printf '%s\n' "${ZIVPN_GROUPS[@]}" | zivpn_pintar_tabla 3 "kernel"
-        elif [[ "$ZIVPN_SVC_ACTIVE" -eq 1 ]]; then
-            echo -e "   ${GY}┌──────────────────┬──────────┬─────────────────────┬────────────────────┐${RS}"
-            echo -e "   ${GY}│${RS} ${WH}CONTRASEÑA      ${RS} ${GY}│${RS} ${WH}DISP.   ${RS} ${GY}│${RS} ${WH}ÚLTIMA CONEXIÓN     ${RS} ${GY}│${RS} ${WH}ESTADO             ${RS} ${GY}│${RS}"
-            echo -e "   ${GY}├──────────────────┼──────────┼─────────────────────┼────────────────────┤${RS}"
-            echo -e "   ${GY}│${RS} ${GY}(sin contraseñas activas en este instante)${RS}"
-            echo -e "   ${GY}└──────────────────┴──────────┴─────────────────────┴────────────────────┘${RS}"
-        else
-            echo -e "   ${GY}· ZiVPN no instalado o detenido${RS}"
+        local traffic_gb_pct=0
+        if [[ "$d_total" -gt 0 ]]; then
+            traffic_gb_pct=$(( d_total * 100 / 10737418240 ))
+            [[ "$traffic_gb_pct" -gt 100 ]] && traffic_gb_pct=100
         fi
+        local vps_gb_pct=0
+        if [[ "$vps_total" -gt 0 ]]; then
+            vps_gb_pct=$(( vps_total * 100 / 1099511627776 ))
+            [[ "$vps_gb_pct" -gt 100 ]] && vps_gb_pct=100
+        fi
+
+        printf "      ${GR}▼${RS} ${WH}Descarga :${RS} ${CY}%-12s${RS}\n" "$d_rx_fmt"
+        printf "      ${RD}▲${RS} ${WH}Subida   :${RS} ${OR}%-12s${RS}\n" "$d_tx_fmt"
+        echo -e "      ${GY}──────────────────────────────${RS}"
+        printf "      ${YW}◆${RS} ${WH}Total día:${RS} ${YW}%-12s${RS}  " "$d_total_fmt"
+        _barra_progreso $traffic_gb_pct 100 20 "\\033[1;33m"
+        echo ""
+        printf "      ${TQ}◆${RS} ${WH}Total VPS:${RS} ${TQ}%-12s${RS}  " "$vps_total_fmt"
+        _barra_progreso $vps_gb_pct 100 20 "\\033[1;36m"
+        echo ""
         echo ""
 
-        # PANEL TRÁFICO Y SISTEMA
-        echo -e "  ${CY}─── 📊 TRÁFICO DEL DÍA (desde 00:00) ───────────────────────────────────${RS}"
-        local p_dia=0
-        (( TOT_VPS > 0 )) && p_dia=$(( D_TOT * 100 / TOT_VPS ))
-        (( p_dia > 100 )) && p_dia=100
-        echo -e "      ${YW}▼ Descarga : $(_fmt_bytes "$D_RX")${RS}"
-        echo -e "      ${GR}▲ Subida   : $(_fmt_bytes "$D_TX")${RS}"
-        echo -e "      ${CY}────────────────────────────────────${RS}"
-        echo -e "      ${MG}◆ Total día: $(_fmt_bytes "$D_TOT")${RS}     $(_barra_progreso "$p_dia" 16)"
-        echo -e "      ${MG}◆ Total VPS: $(_fmt_bytes "$TOT_VPS")${RS}     ${GY}(interfaz ${IFACE})${RS}"
+        # ┌─── SISTEMA ───┐
+        echo -e "  ${GY}─── ${TQ}🖥 SISTEMA${RS} ${GY}───────────────────────────────────────────────────${RS}"
         echo ""
 
-        echo -e "  ${CY}─── 🖥 SISTEMA ─────────────────────────────────────────────────────────${RS}"
-        echo -e "      ${WH}CPU  : ${CPU_USE}%  $(_barra_progreso "${CPU_USE%.*}" 16)${RS}"
-        echo -e "      ${WH}RAM  : ${RAM_PCT}%  $(_barra_progreso "$RAM_PCT" 16)  ${RAM_USED_MB}MB / ${RAM_TOTAL_MB}MB${RS}"
-        echo -e "      ${WH}Uptime : ${UPTIME_STR} · Fecha: ${HOY}${RS}"
+        local cpu_pct_int=0
+        [[ "$CPU_USE" != "—" ]] && cpu_pct_int=$(printf "%.0f" "$CPU_USE" 2>/dev/null || echo 0)
+        local cpu_color="$GR"
+        [[ "$cpu_pct_int" -ge 60 ]] && cpu_color="$YW"
+        [[ "$cpu_pct_int" -ge 85 ]] && cpu_color="$RD"
+
+        printf "      ${WH}CPU${RS}  ${cpu_color}%5s%%${RS}  " "$CPU_USE"
+        _barra_progreso $cpu_pct_int 100 20 "$cpu_color"
         echo ""
 
-        echo -e "  ${BL}══════════════════════════════════════════════════════════════════════${RS}"
-        echo -e "   ${CY}[ENTER]/[R] Actualizar${RS}    ${CY}[K] Purgar flujos ZiVPN ociosos${RS}    ${RD}[0] Volver${RS}"
-        echo -e "  ${BL}══════════════════════════════════════════════════════════════════════${RS}"
+        local ram_color="$GR"
+        [[ "$RAM_PCT" -ge 60 ]] && ram_color="$YW"
+        [[ "$RAM_PCT" -ge 85 ]] && ram_color="$RD"
+
+        printf "      ${WH}RAM${RS}  ${ram_color}%4s%%${RS}   " "$RAM_PCT"
+        _barra_progreso $RAM_PCT 100 20 "$ram_color"
+        printf "  ${GY}%sMB / %sMB${RS}\n" "$RAM_USED_MB" "$RAM_TOTAL_MB"
+        echo ""
+
+        # ┌─── CONTROLES ───┐
+        echo -e "  ${DK}══════════════════════════════════════════════════════════════════════${RS}"
+        echo -e "    ${GR}[ENTER]${RS}/${GR}[R]${RS} ${WH}Actualizar${RS}        ${CY}[K]${RS} ${WH}Purgar flujos ZiVPN ociosos${RS}        ${RD}[0]${RS} ${WH}Volver${RS}"
+        echo -e "  ${DK}══════════════════════════════════════════════════════════════════════${RS}"
         echo -ne "   ► "
 
         if ! read -r OPC_M; then break; fi
         case "$OPC_M" in
             ""|r|R) ;;
             k|K)
-                local p_out
-                p_out=$(purgar_flujos_zivpn_muertos "$ZIVPN_PORT")
-                K_MSG="${GR}✔ Flujos ZiVPN purgados exitosamente: ${p_out} entrada(s) eliminada(s).${RS}"
+                if [[ "$ZIVPN_SVC_ACTIVE" -eq 1 ]] && declare -F purgar_flujos_zivpn_muertos >/dev/null 2>&1; then
+                    K_MSG=$(purgar_flujos_zivpn_muertos "$ZIVPN_PORT" 2>/dev/null)
+                    [[ -z "$K_MSG" ]] && K_MSG=0
+                else
+                    K_MSG="err"
+                fi
                 ;;
             0|q|Q) break ;;
             *) ;;
@@ -1056,12 +1293,13 @@ verificar_y_limpiar() {
 _actualizar_baseline() {
     local IFACE=$(ip route get 8.8.8.8 2>/dev/null | awk '{for(i=1;i<=NF;i++)if($i=="dev"){print $(i+1);exit}}')
     [[ -z "$IFACE" ]] && IFACE="eth0"
-    local RX_RAW=0 TX_RAW=0
-    if [[ -r /proc/net/dev ]]; then
-        read -r RX_RAW TX_RAW < <(awk -v iface="${IFACE}:" '$1 == iface { print $2, $10 }' /proc/net/dev 2>/dev/null)
-    fi
-    mkdir -p "$DIR_TRAFICO" 2>/dev/null
-    echo "${RX_RAW:-0} ${TX_RAW:-0}" > "$BASELINE" 2>/dev/null
+    local cur_rx cur_tx
+    cur_rx=$(cat /sys/class/net/"$IFACE"/statistics/rx_bytes 2>/dev/null || echo 0)
+    cur_tx=$(cat /sys/class/net/"$IFACE"/statistics/tx_bytes 2>/dev/null || echo 0)
+    local snap_dir="$DIR_TRAFICO/snapshots"
+    local HOY_DATE=$(date +%Y-%m-%d)
+    mkdir -p "$snap_dir" 2>/dev/null
+    echo "$(date +%H:%M):${cur_rx}:${cur_tx}" > "$snap_dir/${HOY_DATE}.snap" 2>/dev/null
 }
 
 activar_servicio_monitor() {
@@ -1100,7 +1338,6 @@ case "${1:-}" in
     --stop-service)   detener_servicio_monitor; exit 0 ;;
     --status)
         printf 'monitor=%s\n' "$(systemctl is-active maxinet-monitor.service 2>/dev/null || echo inactive)"
-        printf 'udp=%s\n' "$(conexiones_udp_custom_activas 6 2>/dev/null | wc -l)"
         printf 'badvpn=%s\n' "$(badvpn_tuneles_vivos)"
         exit 0
         ;;
