@@ -217,18 +217,16 @@ _udp_custom_pintar_tabla() {
     local pad="   " max="${UDP_TABLA_MAX:-25}" shown=0
     local usuario n ips nip ult nv uev tcol marca hace est cell nip_txt
     local n_on=0 n_off=0 n_ip_on=0 _ip
-    local w_user=16 w_n=8 w_ult=19 w_est=18
     declare -A _ips_on=()
 
     local top mid bot
-    top="┌$(_abb_rep '─' $((w_user+2)))┬$(_abb_rep '─' $((w_n+2)))┬$(_abb_rep '─' $((w_ult+2)))┬$(_abb_rep '─' $((w_est+2)))┐"
-    mid="├$(_abb_rep '─' $((w_user+2)))┼$(_abb_rep '─' $((w_n+2)))┼$(_abb_rep '─' $((w_ult+2)))┼$(_abb_rep '─' $((w_est+2)))┤"
-    bot="└$(_abb_rep '─' $((w_user+2)))┴$(_abb_rep '─' $((w_n+2)))┴$(_abb_rep '─' $((w_ult+2)))┴$(_abb_rep '─' $((w_est+2)))┘"
+    top="┌──────────────────┬──────────┬─────────────────────┬────────────┐"
+    mid="├──────────────────┼──────────┼─────────────────────┼────────────┤"
+    bot="└──────────────────┴──────────┴─────────────────────┴────────────┘"
 
     echo -e "${pad}${GY}${top}${RS}"
-    printf "${pad}${GY}│${RS} ${WH}%s${RS} ${GY}│${RS} ${WH}%s${RS} ${GY}│${RS} ${WH}%s${RS} ${GY}│${RS} ${WH}%s${RS} ${GY}│${RS}\n" \
-        "$(_abb_celda 'USUARIO SSH' "$w_user")" "$(_abb_celda 'DISP.' "$w_n")" \
-        "$(_abb_celda 'ÚLTIMA CONEXIÓN' "$w_ult")" "$(_abb_celda 'ESTADO' "$w_est")"
+    printf "${pad}${GY}│${RS} %s ${GY}│${RS} %s ${GY}│${RS} %s ${GY}│${RS} %s ${GY}│${RS}\n" \
+        "USUARIO SSH     " "DISP.   " "ÚLTIMA CONEXIÓN    " "ESTADO    "
     echo -e "${pad}${GY}${mid}${RS}"
 
     for line in "${filas[@]}"; do
@@ -244,17 +242,17 @@ _udp_custom_pintar_tabla() {
             if (( ${nv:-0} >= ${nip:-0} )); then
                 for _ip in $ips; do [[ -n "$_ip" ]] && _ips_on["$_ip"]=1; done
             fi
-            est="$(_abb_celda "${marca} ${hace}" "$w_est")"
+            printf -v est '%s %-8s' "$marca" "$hace"
         else
             marca="○"; tcol="$GY"
             n_off=$(( n_off + 1 ))
             hace=$(_udp_hace "${uev:-$ult}" "nunca")
             nip_txt=0
-            est="$(_abb_celda "${marca} apagada ${hace}" "$w_est")"
+            printf -v est '%s %-8s' "$marca" "$hace"
         fi
-        cell=$(_abb_celda "$usuario" "$w_user")
-        printf "${pad}${GY}│${RS} ${YW}%s${RS} ${GY}│${RS} ${WH}%8s${RS} ${GY}│${RS} ${CY}%s${RS} ${GY}│${RS} ${tcol}%s${RS} ${GY}│${RS}\n" \
-            "$cell" "$nip_txt" "$(_abb_celda "${ult:-—}" "$w_ult")" "$est"
+        cell=$(_zivpn_celda16 "$usuario")
+        printf "${pad}${GY}│${RS} ${YW}%s${RS} ${GY}│${RS} ${WH}%8s${RS} ${GY}│${RS} ${CY}%-19s${RS} ${GY}│${RS} ${tcol}%s${RS} ${GY}│${RS}\n" \
+            "$cell" "$nip_txt" "${ult:-—}" "$est"
     done
 
     echo -e "${pad}${GY}${bot}${RS}"
@@ -269,10 +267,22 @@ _udp_merge_evidencia() {
     local db="${1:-}" cache="${2:-}" entrada cache_iso="" regs=""
     entrada=$(cat)
 
+    if [[ ! -s "$cache" && -s "/etc/abbienet/trafico/udp_ultima.db" ]]; then
+        cache="/etc/abbienet/trafico/udp_ultima.db"
+    fi
+
     if [[ -n "$cache" && -s "$cache" ]]; then
         cache_iso=$(awk -F'|' '$1 != "" && $2 ~ /^[0-9]+$/ {
             printf "%s|%s\n", $1, strftime("%Y-%m-%d %H:%M:%S", $2 + 0)
         }' "$cache" 2>/dev/null)
+        if [[ -z "$cache_iso" && -s "$cache" ]]; then
+            while IFS='|' read -r cu ce cip; do
+                [[ -z "$cu" || ! "$ce" =~ ^[0-9]+$ ]] && continue
+                local dt
+                dt=$(date -d "@$ce" '+%Y-%m-%d %H:%M:%S' 2>/dev/null)
+                [[ -n "$dt" ]] && cache_iso+="${cu}|${dt}"$'\n'
+            done < "$cache"
+        fi
     fi
 
     if [[ -n "$db" && -f "$db" ]]; then
@@ -315,6 +325,10 @@ _udp_merge_evidencia() {
                 if (u in grp) continue
                 if (u == "" || u == "root" || !(u in reg)) continue
                 printf "%s|0||0|%s|0\n", u, cult[u]
+            }
+            for (u in reg) {
+                if (u == "" || u == "root" || (u in grp) || (u in cult)) continue
+                printf "%s|0||0|—|0\n", u
             }
         }'
 }
@@ -1123,10 +1137,8 @@ mostrar_conectados() {
             echo -e "   ${RD}⚠ herramientas/conexiones.sh NO está cargado.${RS}"
             echo ""
         elif [[ -f "$DIR_ZIVPN/config.json" ]]; then
-            if [[ "$ZIVPN_SVC_ACTIVE" -eq 1 && ${#ZIVPN_GROUPS[@]} -gt 0 ]]; then
-                if declare -F zivpn_pintar_tabla >/dev/null 2>&1; then
-                    printf '%s\n' "${ZIVPN_GROUPS[@]}" | zivpn_pintar_tabla 3 "kernel"
-                fi
+            if declare -F zivpn_pintar_tabla >/dev/null 2>&1; then
+                printf '%s\n' "${ZIVPN_GROUPS[@]}" | zivpn_pintar_tabla 3 "${z_modo:-kernel}"
             fi
             echo ""
             echo -e "   ${GY}[K] purgar flujos ZiVPN ociosos (timeout residual ≤5 s; los vivos NO se tocan)${RS}"

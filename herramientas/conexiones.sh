@@ -539,9 +539,11 @@ zivpn_iso_a_fecha() {
     t="${iso#*T}"
     [[ "$d" != "$iso" && -n "$t" ]] || return 0
     t="${t%%[-+]*}"
+    t="${t%%Z*}"
+    t="${t%%.*}"
     [[ "$d" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || return 0
     [[ "$t" =~ ^[0-9]{2}:[0-9]{2}:[0-9]{2} ]] || return 0
-    printf '%s %s' "$d" "$t"
+    printf '%s %s' "$d" "${t:0:8}"
 }
 
 zivpn_fecha_db() {
@@ -814,11 +816,23 @@ zivpn_pintar_tabla() {
     local valid_passes=""
     local cfg="${MAXINET_ZIVPN_CONFIG:-/etc/zivpn/config.json}"
     local cad="${MAXINET_ZIVPN_CADUCIDAD:-/etc/zivpn/caducidad.db}"
+    local lim="${MAXINET_ZIVPN_LIMITES:-/etc/zivpn/limites.db}"
     if [[ -f "$cfg" ]] && command -v jq >/dev/null 2>&1; then
-        valid_passes=$(jq -r '.auth.config[]?' "$cfg" 2>/dev/null)
+        valid_passes+=$(jq -r '.auth.config[]?' "$cfg" 2>/dev/null)$'\n'
     fi
-    if [[ -f "$cad" ]]; then
-        valid_passes+=$'\n'$(awk -F: '$1!="" {print $1}' "$cad" 2>/dev/null)
+    [[ -f "$cad" ]] && valid_passes+=$(cut -d: -f1 "$cad" 2>/dev/null)$'\n'
+    [[ -f "$lim" ]] && valid_passes+=$(cut -d: -f1 "$lim" 2>/dev/null)$'\n'
+    valid_passes=$(printf '%s\n' "$valid_passes" | awk 'NF && !seen[$0]++')
+
+    # Si hay contraseñas válidas en el sistema pero cand está vacío (sin conexiones previas),
+    # incluir las configuradas para que la tabla se mantenga visible
+    if [[ -z "$cand" && -n "$valid_passes" ]]; then
+        cand="$valid_passes"
+    elif [[ -n "$valid_passes" ]]; then
+        cand=$(printf '%s\n' "$cand" | awk -v vp="$valid_passes" '
+            BEGIN { split(vp, a, "\n"); for (i in a) valid[a[i]]=1 }
+            $1 != "" && ($1 in valid) { print }
+        ')
     fi
 
     local -A OFF_DATES=()
@@ -838,26 +852,19 @@ zivpn_pintar_tabla() {
         done <<< "$grupos_off"
     fi
 
-    local -a filas_off=()
+    local off_rows="" off_orden="" n_off=0
     if [[ -n "$cand" ]]; then
         while IFS= read -r p; do
             [[ -z "$p" ]] && continue
-            if [[ -n "$valid_passes" ]]; then
-                echo "$valid_passes" | grep -qx "$p" || continue
-            fi
             u="${OFF_DATES[$p]:-nunca vista}"
-            filas_off+=("${p}|0||0|${u}|0")
+            off_rows+="${p}|${u}"$'\n'
         done <<< "$cand"
+        off_orden=$(printf '%s' "$off_rows" | LC_ALL=C sort -t'|' -k2,2r -k1,1)
+        n_off=$(printf '%s\n' "$off_orden" | awk -F'|' '$1 != "" { c++ } END { print c + 0 }')
     fi
-    local n_off=${#filas_off[@]}
 
     if [[ "$n_on" -eq 0 && "$n_off" -eq 0 ]]; then
         return 0
-    fi
-
-    local filas_off_sorted=""
-    if [[ "$n_off" -gt 0 ]]; then
-        filas_off_sorted=$(printf '%s\n' "${filas_off[@]}" | LC_ALL=C sort -t'|' -k5,5r)
     fi
 
     local C_AZUL="\033[1;34m"
@@ -872,58 +879,54 @@ zivpn_pintar_tabla() {
     local c_borde="$C_AZUL"
     local c_hdr="$C_BLANCO"
 
-    local w_pass=16 w_usr=8 w_ult=19 w_est=18
-    local top="┌$(printf '─%.0s' $(seq 1 $((w_pass+2))))┬$(printf '─%.0s' $(seq 1 $((w_usr+2))))┬$(printf '─%.0s' $(seq 1 $((w_ult+2))))┬$(printf '─%.0s' $(seq 1 $((w_est+2))))┐"
-    local mid="├$(printf '─%.0s' $(seq 1 $((w_pass+2))))┼$(printf '─%.0s' $(seq 1 $((w_usr+2))))┼$(printf '─%.0s' $(seq 1 $((w_ult+2))))┼$(printf '─%.0s' $(seq 1 $((w_est+2))))┤"
-    local bot="└$(printf '─%.0s' $(seq 1 $((w_pass+2))))┴$(printf '─%.0s' $(seq 1 $((w_usr+2))))┴$(printf '─%.0s' $(seq 1 $((w_ult+2))))┴$(printf '─%.0s' $(seq 1 $((w_est+2))))┘"
+    local top="┌──────────────────┬──────────┬─────────────────────┬────────────┐"
+    local mid="├──────────────────┼──────────┼─────────────────────┼────────────┤"
+    local bot="└──────────────────┴──────────┴─────────────────────┴────────────┘"
 
     echo -e "${pad}${c_borde}${top}${C_RESET}"
-    printf "${pad}${c_borde}│${C_RESET} ${c_hdr}%-16s${C_RESET} ${c_borde}│${C_RESET} ${c_hdr}%-8s${C_RESET} ${c_borde}│${C_RESET} ${c_hdr}%-19s${C_RESET} ${c_borde}│${C_RESET} ${c_hdr}%-18s${C_RESET} ${c_borde}│${C_RESET}\n" \
-        "CONTRASEÑA" "DISP." "ÚLTIMA CONEXIÓN" "ESTADO"
+    printf "${pad}${c_borde}│${C_RESET} %s ${c_borde}│${C_RESET} %s ${c_borde}│${C_RESET} %s ${c_borde}│${C_RESET} %s ${c_borde}│${C_RESET}\n" \
+        "CONTRASEÑA      " "USUARIOS" "ÚLTIMA CONEXIÓN    " "ESTADO    "
     echo -e "${pad}${c_borde}${mid}${C_RESET}"
 
     local pass nses ips nip ult nviv ip_count ip_txt cell hace est tcol marca shown=0
     local max="${ZIVPN_TABLA_MAX:-25}"
-    local -A seen_on_ips=()
+    local usr_on=0
+    usr_on=$(printf '%s\n' "$filas_on" | awk -F'|' '$1 != "" { s += $4 + 0 } END { print s + 0 }')
 
     if [[ "$n_on" -gt 0 ]]; then
         while IFS='|' read -r pass nses ips nip ult nviv; do
             [[ -z "$pass" ]] && continue
             [[ "$shown" -ge "$max" ]] && break
             shown=$(( shown + 1 ))
-            ip_count="$nip"
-            [[ -z "$ip_count" || "$ip_count" == "0" ]] && ip_count="$nses"
-            ip_txt="${ip_count:-1}"
-            for _ip in $ips; do [[ -n "$_ip" ]] && seen_on_ips["$_ip"]=1; done
-            cell=$(_zivpn_celda16 "$pass")
+            [[ -z "$ult" ]] && ult="sin fecha"
+            marca="◐"; tcol="$C_AMARILLO"
+            [[ "${nviv:-0}" -ge "${nses:-1}" ]] && { marca="●"; tcol="$C_VERDE"; }
             hace=$(_zivpn_hace "$ult" "en vivo")
-            marca="●"
-            tcol="$C_VERDE"
-            est=$(printf "%-18s" "${marca} ${hace}")
-            printf "${pad}${c_borde}│${C_RESET} ${C_DORADO}%s${C_RESET} ${c_borde}│${C_RESET} ${C_BLANCO}%8s${C_RESET} ${c_borde}│${C_RESET} ${C_CIAN}%-19s${C_RESET} ${c_borde}│${C_RESET} ${tcol}%s${C_RESET} ${c_borde}│${C_RESET}\n" \
-                "$cell" "$ip_txt" "$ult" "$est"
+            printf -v est '%s %-8s' "$marca" "$hace"
+            cell=$(_zivpn_celda16 "$pass")
+            printf "${pad}${c_borde}│${C_RESET} ${C_AMARILLO}%s${C_RESET} ${c_borde}│${C_RESET} ${C_BLANCO}%8s${C_RESET} ${c_borde}│${C_RESET} ${C_CIAN}%-19s${C_RESET} ${c_borde}│${C_RESET} ${tcol}%s${C_RESET} ${c_borde}│${C_RESET}\n" \
+                "$cell" "${nip:-$nses}" "$ult" "$est"
         done <<< "$filas_on"
     fi
 
     if [[ "$n_off" -gt 0 && "$shown" -lt "$max" ]]; then
-        while IFS='|' read -r pass _ _ _ ult _; do
+        while IFS='|' read -r pass ult; do
             [[ -z "$pass" ]] && continue
             [[ "$shown" -ge "$max" ]] && break
             shown=$(( shown + 1 ))
-            cell=$(_zivpn_celda16 "$pass")
+            [[ -z "$ult" ]] && ult="nunca vista"
             hace=$(_zivpn_hace "$ult" "nunca")
-            marca="○"
-            tcol="$C_GRIS"
-            est=$(printf "%-18s" "${marca} apagada ${hace}")
-            printf "${pad}${c_borde}│${C_RESET} ${C_GRIS}%s${C_RESET} ${c_borde}│${C_RESET} ${C_GRIS}%8s${C_RESET} ${c_borde}│${C_RESET} ${C_GRIS}%-19s${C_RESET} ${c_borde}│${C_RESET} ${tcol}%s${C_RESET} ${c_borde}│${C_RESET}\n" \
-                "$cell" "0" "${ult:-—}" "$est"
-        done <<< "$filas_off_sorted"
+            printf -v est '%s %-8s' "○" "$hace"
+            cell=$(_zivpn_celda16 "$pass")
+            printf "${pad}${c_borde}│${C_RESET} ${C_GRIS}%s${C_RESET} ${c_borde}│${C_RESET} ${C_GRIS}%8s${C_RESET} ${c_borde}│${C_RESET} ${C_GRIS}%-19s${C_RESET} ${c_borde}│${C_RESET} ${C_GRIS}%s${C_RESET} ${c_borde}│${C_RESET}\n" \
+                "$cell" "0" "$ult" "$est"
+        done <<< "$off_orden"
     fi
 
     echo -e "${pad}${c_borde}${bot}${C_RESET}"
-    local n_on_ips=${#seen_on_ips[@]}
-    local leyenda="● = activa ahora · ○ = apagada"
-    echo -e "${pad}${C_GRIS}${n_on} en línea (${n_on_ips} IP/disp activa) · ${n_off} apagada(s) · ${leyenda}${C_RESET}"
+    local leyenda="●/◐ = con tráfico kernel reciente · ○ = apagada"
+    [[ "$modo" == "journal" ]] && leyenda="●/◐ = conectada en los últimos ${ZIVPN_VENTANA_SEG:-60} s · ○ = apagada"
+    echo -e "${pad}${C_GRIS}${n_on} contraseña(s) en línea · ${usr_on} usuario(s) conectado(s) · ${n_off} apagada(s) · ${leyenda}${C_RESET}"
 }
 
 purgar_flujos_zivpn_muertos() {

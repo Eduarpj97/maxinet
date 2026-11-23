@@ -747,8 +747,10 @@ ver_conectados_zivpn() {
         agrupadas=$(printf '%s' "$z_rows" | zivpn_agrupar | sort -t'|' -k6,6rn -k3,3rn)
     fi
 
-    if [[ -n "$agrupadas" ]]; then
-        printf '%s\n' "$agrupadas" | zivpn_pintar_tabla 2 "kernel"
+    if declare -F zivpn_pintar_tabla >/dev/null 2>&1; then
+        printf '%s\n' "$agrupadas" | zivpn_pintar_tabla 2 "${z_modo:-kernel}"
+    elif [[ -n "$agrupadas" ]]; then
+        printf '%s\n' "$agrupadas"
     else
         _zv_aviso "${C_DIM}(sin clientes ZiVPN activos en este momento)${C_RESET}"
     fi
