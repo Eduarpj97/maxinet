@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.8
+# Maxinet Network Premium v2.9
 # ZiVPN UDP Manager (Enlace al gestor unificado)
 #==================================================
 

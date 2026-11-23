@@ -1,9 +1,8 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network v2.8
+# Maxinet Network v2.9
 # Monitor Conectados (En Vivo) · 100% Datos Reales
-# Basado en Abbienet Monitor v7.2.3
-# Monitoreo pasivo (nf_conntrack / sockets / journal / ss / ps)
+# Sin simulación: ss / conntrack / ps / proc / lastlog
 #==================================================
 
 export LC_ALL=C.UTF-8 2>/dev/null
@@ -12,49 +11,46 @@ export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 BASE="/etc/maxinet"
 CONFIG="$BASE/config.conf"
 DB_USERS="$BASE/usuarios.db"
-ZIVPN_CONEX="$DIR_ZIVPN/conexiones.db"
-[[ -z "$DIR_ZIVPN" ]] && DIR_ZIVPN="/etc/zivpn"
 [[ -f "$CONFIG" ]] && source "$CONFIG" 2>/dev/null
+DIR_ZIVPN="${DIR_ZIVPN:-/etc/zivpn}"
+ZIVPN_CONEX="$DIR_ZIVPN/conexiones.db"
+DIR_TRAFICO="$BASE/trafico"
+BASELINE="$DIR_TRAFICO/iface_dia.db"
 
-mkdir -p "$BASE" 2>/dev/null
+mkdir -p "$BASE" "$DIR_TRAFICO" 2>/dev/null
 touch "$DB_USERS" 2>/dev/null
+# Nunca dejar rutas inexistentes que rompan redirecciones
+[[ -f "$DB_USERS" ]] || DB_USERS="/dev/null"
 
-# Paleta ANSI - Estilo Abbienet
-RST="\033[0m"
-BLD="\033[1m"
-DIM="\033[2m"
-RED="\033[1;31m"
-GRN="\033[1;32m"
-YEL="\033[1;33m"
-BLU="\033[1;34m"
-MAG="\033[1;35m"
-CYN="\033[1;36m"
-WHT="\033[1;37m"
-GRY="\033[38;5;245m"
-ORA="\033[38;5;208m"
-GOL="\033[38;5;220m"
+# ── Paleta ANSI ──
+RST="\033[0m"; BLD="\033[1m"; DIM="\033[2m"
+RED="\033[1;31m"; GRN="\033[1;32m"; YEL="\033[1;33m"
+BLU="\033[1;34m"; MAG="\033[1;35m"; CYN="\033[1;36m"; WHT="\033[1;37m"
+GRY="\033[38;5;245m"; ORA="\033[38;5;208m"; GOL="\033[38;5;220m"
 
-# Caracteres de caja
-BOX_H="─"
-BOX_V="│"
-BOX_TL="┌"
-BOX_TR="┐"
-BOX_BL="└"
-BOX_BR="┘"
-BOX_TM="┬"
-BOX_BM="┴"
-BOX_ML="├"
-BOX_MR="┤"
-BOX_MM="┼"
+# ─────────────────────────────────────────────────────────────
+# UTILIDADES NUMÉRICAS
+# grep -c SIEMPRE imprime un número pero devuelve exit 1 cuando
+# no hay coincidencias. Por eso NUNCA se usa "|| echo 0" detrás
+# de un grep -c: eso genera DOS líneas ("0\n0") y rompe $(( )).
+# ─────────────────────────────────────────────────────────────
+_num() {
+    local v="${1:-}"
+    [[ "$v" =~ ^[0-9]+$ ]] || v=0
+    printf '%s' "$v"
+}
 
-_abb_rep() {
-    local c="$1" n="$2" out=""
+_rep() {
+    local c="$1" n out=""
+    n=$(_num "${2:-0}")
     while (( n-- > 0 )); do out+="$c"; done
     printf '%s' "$out"
 }
 
-_abb_celda() {
-    local s="${1:-}" ancho="${2:-10}" n
+_celda() {
+    local s="${1:-}" ancho n
+    ancho=$(_num "${2:-10}")
+    (( ancho < 1 )) && ancho=1
     n=${#s}
     if (( n > ancho )); then
         s="${s:0:ancho}"
@@ -67,73 +63,203 @@ _abb_celda() {
     fi
 }
 
-_fmt_bytes() {
-    local bytes="$1"
-    [[ -z "$bytes" || "$bytes" -le 0 ]] && { echo "0.0 MB"; return; }
-    if [[ "$bytes" -ge 1073741824 ]]; then
-        awk "BEGIN {printf \"%.2f GB\", $bytes / 1073741824}"
-    elif [[ "$bytes" -ge 1048576 ]]; then
-        awk "BEGIN {printf \"%.1f MB\", $bytes / 1048576}"
-    elif [[ "$bytes" -ge 1024 ]]; then
-        awk "BEGIN {printf \"%.1f KB\", $bytes / 1024}"
-    else
-        echo "${bytes} B"
+_barra() {
+    local pct width filled empty i out=""
+    pct=$(_num "${1:-0}")
+    width=$(_num "${2:-20}")
+    (( width < 1 )) && width=1
+    (( pct > 100 )) && pct=100
+    filled=$(( pct * width / 100 ))
+    empty=$(( width - filled ))
+    for (( i=0; i<filled; i++ )); do out+="█"; done
+    for (( i=0; i<empty; i++ )); do out+="░"; done
+    printf '%s' "$out"
+}
+
+_pct10() {
+    local n
+    n=$(_num "${1:-0}")
+    (( n > 10 )) && n=10
+    printf '%s' $(( n * 10 ))
+}
+
+_gb() {
+    awk -v b="$(_num "${1:-0}")" 'BEGIN{printf "%.2f", b/1073741824}'
+}
+
+_sep() {
+    local t="$1" pad
+    pad=$(( 66 - ${#t} ))
+    (( pad < 2 )) && pad=2
+    printf '%b\n' "${CYN}─── ${WHT}${t}${CYN} $(_rep '─' "$pad")${RST}"
+}
+
+# ─────────────────────────────────────────────────────────────
+# INTERFAZ Y TRÁFICO REAL
+# ─────────────────────────────────────────────────────────────
+_iface() {
+    local i
+    i=$(ip route show default 2>/dev/null | awk '{print $5; exit}')
+    [[ -z "$i" ]] && i=$(awk -F: '/^[a-z]/ && $1!="lo"{gsub(/ /,"",$1); print $1; exit}' /proc/net/dev 2>/dev/null)
+    printf '%s' "${i:-eth0}"
+}
+
+_iface_rx() { awk -v k="$1:" '$1==k{print $2+0; exit}' /proc/net/dev 2>/dev/null; }
+_iface_tx() { awk -v k="$1:" '$1==k{print $10+0; exit}' /proc/net/dev 2>/dev/null; }
+
+_ensure_trafico() {
+    [[ -d "$DIR_TRAFICO" ]] || mkdir -p "$DIR_TRAFICO" 2>/dev/null
+    [[ -d "$DIR_TRAFICO" ]]
+}
+
+# Guarda la línea base del día (00:00). La llama el cron cada minuto
+# y también el propio monitor, así el "hoy" es real y no "desde el boot".
+_actualizar_baseline() {
+    local iface hoy rx tx f_date f_rx f_tx
+    iface=$(_iface)
+    [[ -z "$iface" ]] && return 0
+    hoy=$(date +%Y-%m-%d)
+    rx=$(_num "$(_iface_rx "$iface")")
+    tx=$(_num "$(_iface_tx "$iface")")
+    if [[ -f "$BASELINE" ]]; then
+        read -r f_date f_rx f_tx < "$BASELINE" 2>/dev/null
+        [[ "$f_date" == "$hoy" ]] && return 0
+    fi
+    _ensure_trafico || return 0
+    printf '%s %s %s\n' "$hoy" "$rx" "$tx" > "$BASELINE" 2>/dev/null
+}
+
+_trafico_dia() {
+    local iface hoy rx tx f_date="" f_rx=0 f_tx=0 d_rx d_tx
+    iface=$(_iface)
+    hoy=$(date +%Y-%m-%d)
+    rx=$(_num "$(_iface_rx "$iface")")
+    tx=$(_num "$(_iface_tx "$iface")")
+    if [[ -f "$BASELINE" ]]; then
+        read -r f_date f_rx f_tx < "$BASELINE" 2>/dev/null
+    fi
+    if [[ "$f_date" != "$hoy" ]]; then
+        f_rx="$rx"; f_tx="$tx"
+        _ensure_trafico && printf '%s %s %s\n' "$hoy" "$rx" "$tx" > "$BASELINE" 2>/dev/null
+    fi
+    f_rx=$(_num "$f_rx"); f_tx=$(_num "$f_tx")
+    d_rx=$(( rx - f_rx )); d_tx=$(( tx - f_tx ))
+    (( d_rx < 0 )) && d_rx=0
+    (( d_tx < 0 )) && d_tx=0
+    printf '%s %s\n' "$d_rx" "$d_tx"
+}
+
+# ─────────────────────────────────────────────────────────────
+# CONTEO REAL DE CONEXIONES
+# ─────────────────────────────────────────────────────────────
+_udp_clientes() {
+    local puerto="$1" n=0
+    if command -v conntrack >/dev/null 2>&1; then
+        n=$(conntrack -L -p udp --dport "$puerto" 2>/dev/null | grep -oE 'src=[0-9.]+' | sort -u | wc -l)
+    fi
+    n=$(_num "$n")
+    if (( n == 0 )); then
+        n=$(ss -Hun 2>/dev/null | awk -v p=":$puerto" '$1=="udp" && $4 ~ p"$" {print $5}' | grep -vE '^(0\.0\.0\.0|\*|\[::\]):' | sort -u | wc -l)
+        n=$(_num "$n")
+    fi
+    printf '%s' "$n"
+}
+
+_badvpn_conex() {
+    local n
+    n=$(ss -Htn state established 2>/dev/null | awk '{c=split($3,a,":"); p=a[c]; if (p ~ /^[0-9]+$/ && p >= 7100 && p <= 9900) t++} END{print t+0}')
+    printf '%s' "$(_num "$n")"
+}
+
+_ssh_sesiones() {
+    local a b
+    a=$(ps -eo args= 2>/dev/null | grep -c 'sshd:.*@')
+    b=$(ps -eo args= 2>/dev/null | grep -c 'dropbear.*\[')
+    printf '%s' $(( $(_num "$a") + $(_num "$b") ))
+}
+
+_ssh_online() {
+    local n
+    n=$(who 2>/dev/null | wc -l)
+    printf '%s' "$(_num "$n")"
+}
+
+_ts_epoch() {
+    local e
+    e=$(date -d "$1" +%s 2>/dev/null)
+    printf '%s' "$(_num "$e")"
+}
+
+_relativo() {
+    local e="$1" d
+    e=$(_num "$e")
+    (( e <= 0 )) && { printf '%s' "—"; return; }
+    d=$(( $(date +%s) - e ))
+    (( d < 0 )) && d=0
+    if   (( d < 60 ));    then printf 'hace %ds' "$d"
+    elif (( d < 3600 ));  then printf 'hace %dm' $(( d / 60 ))
+    elif (( d < 86400 )); then printf 'hace %dh' $(( d / 3600 ))
+    else                       printf 'hace %dd' $(( d / 86400 ))
     fi
 }
 
-# Leer tráfico diario desde iptables accounting
-_leer_trafico_diario() {
-    local TOTAL_DOWN=0 TOTAL_UP=0
-    # Leer de la cadena MAXINET_TRAFFIC si existe
-    if iptables -L MAXINET_TRAFFIC -n -v -x 2>/dev/null | grep -q "MAXINET_TRAFFIC"; then
-        # Sumar bytes de todas las reglas excepto RETURN
-        local DOWN_UP
-        DOWN_UP=$(iptables -L MAXINET_TRAFFIC -n -v -x 2>/dev/null | awk '!/RETURN/ && $2 ~ /^[0-9]+$/ {down+=$2; up+=$3} END{print down, up}')
-        TOTAL_DOWN=$(echo "$DOWN_UP" | awk '{print $1}')
-        TOTAL_UP=$(echo "$DOWN_UP" | awk '{print $2}')
+_ultima_conexion() {
+    local u="$1" raw
+    raw=$(lastlog -u "$u" 2>/dev/null | tail -1)
+    if [[ -z "$raw" || "$raw" == *"Never logged"* || "$raw" == *"Nunca"* || "$raw" == *"**"* ]]; then
+        printf '%s' "Nunca"
+        return
     fi
-    # Fallback: leer de /proc/net/dev si no hay accounting
-    if [[ $TOTAL_DOWN -eq 0 && $TOTAL_UP -eq 0 ]]; then
-        local IFACE=$(ip route show default 2>/dev/null | awk '{print $5}' | head -1)
-        IFACE=${IFACE:-eth0}
-        read -r TOTAL_DOWN TOTAL_UP < <(awk -v i="$IFACE" '$1==i":"{print $2, $10}' /proc/net/dev 2>/dev/null)
-    fi
-    echo "$TOTAL_DOWN $TOTAL_UP"
+    raw=$(echo "$raw" | awk '{$1=""; $2=""; sub(/^[ \t]+/,""); print}')
+    printf '%s' "${raw:0:19}"
 }
 
-# Leer tráfico total VPS
-_leer_trafico_vps() {
-    local IFACE=$(ip route show default 2>/dev/null | awk '{print $5}' | head -1)
-    IFACE=${IFACE:-eth0}
-    local STATS
-    STATS=$(awk -v i="$IFACE" '$1==i":"{print $2+$10}' /proc/net/dev 2>/dev/null)
-    echo "${STATS:-0}"
+_zivpn_resumen() {
+    # salida: auth|conexiones|ultima_marca
+    local db="$ZIVPN_CONEX"
+    [[ -s "$db" ]] || return 0
+    awk -F'|' '
+        { fila[NR]=$0; if ($5=="ok") hayok=1 }
+        END {
+            for (i=1; i<=NR; i++) {
+                n=split(fila[i], f, "|")
+                if (n < 3) continue
+                if (hayok && f[5] != "ok") continue
+                a=f[3]; if (a=="") continue
+                c[a]++
+                if (f[1] > l[a]) l[a]=f[1]
+            }
+            for (a in c) printf "%s|%d|%s\n", a, c[a], l[a]
+        }' "$db" 2>/dev/null | sort -t'|' -k3,3r
 }
 
-_dibujar_barra() {
-    local pct="$1" width="${2:-20}"
-    local filled=$(( pct * width / 100 ))
-    (( filled > width )) && filled=$width
-    (( filled < 0 )) && filled=0
-    local empty=$(( width - filled ))
-    local bar=""
-    for ((i=0;i<filled;i++)); do bar+="█"; done
-    for ((i=0;i<empty;i++)); do bar+="░"; done
-    printf '%s' "$bar"
-}
-
-_dibujar_box() {
-    local title="$1" width="${2:-60}"
-    local len=${#title}
-    local pad=$(( (width - len - 2) / 2 ))
-    (( pad < 0 )) && pad=0
-    local right=$(( width - len - pad - 2 ))
-    (( right < 0 )) && right=0
-    printf '%s%s%s%s%s\n' "${BOX_TL}$(_abb_rep "$BOX_H" $pad)" " $title " "$(_abb_rep "$BOX_H" $right)${BOX_TR}"
+# ─────────────────────────────────────────────────────────────
+# SERVICIO / WATCHDOG
+# ─────────────────────────────────────────────────────────────
+verificar_y_limpiar() {
+    [[ ! -f "$DB_USERS" ]] && return 0
+    local HOY u pass exp lim PIDS N
+    HOY=$(date +%Y-%m-%d)
+    while IFS=: read -r u pass exp lim; do
+        [[ -z "$u" || "$u" =~ ^# ]] && continue
+        if [[ -n "$exp" && "$exp" != "null" && "$exp" != "Ilimitado" && "$HOY" > "$exp" ]]; then
+            pkill -u "$u" -9 2>/dev/null
+            usermod -L "$u" 2>/dev/null
+        fi
+        if [[ "$lim" =~ ^[0-9]+$ ]] && (( lim > 0 )); then
+            PIDS=$(ps -u "$u" -o pid= 2>/dev/null)
+            N=$(printf '%s\n' "$PIDS" | grep -c '[0-9]')
+            N=$(_num "$N")
+            if (( N > lim )); then
+                printf '%s\n' "$PIDS" | tail -n +$(( lim + 1 )) | xargs -r kill -9 2>/dev/null
+            fi
+        fi
+    done < "$DB_USERS"
 }
 
 activar_servicio_monitor() {
-    cat > /etc/systemd/system/maxinet-monitor.service << 'EOF'
+    mkdir -p /etc/systemd/system 2>/dev/null
+    cat > /etc/systemd/system/maxinet-monitor.service << 'SVCEOF'
 [Unit]
 Description=Maxinet Connection Limits & Watchdog Daemon
 After=network.target
@@ -147,12 +273,12 @@ RestartSec=5
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
-    systemctl daemon-reload
+    systemctl daemon-reload 2>/dev/null
     systemctl enable maxinet-monitor.service >/dev/null 2>&1
     systemctl restart maxinet-monitor.service >/dev/null 2>&1
-    echo -e " ${GRN}✔${RST} Vigilante de conexiones activado (revisa cada 15 segundos)."
+    echo -e " ${GRN}✔${RST} Vigilante de conexiones activado (revisa cada 15 s)."
 }
 
 detener_servicio_monitor() {
@@ -161,274 +287,289 @@ detener_servicio_monitor() {
     echo -e " ${RED}✔${RST} Vigilante detenido."
 }
 
-verificar_y_limpiar() {
-    [[ ! -f "$DB_USERS" ]] && return 0
-    local HOY=$(date +%Y-%m-%d)
-    while IFS=: read -r u pass exp lim; do
-        [[ -z "$u" ]] && continue
-        if [[ -n "$exp" && "$exp" != "null" && "$exp" != "Ilimitado" && "$HOY" > "$exp" ]]; then
-            pkill -u "$u" -9 2>/dev/null
-            usermod -L "$u" 2>/dev/null
-        fi
-        if [[ "$lim" =~ ^[0-9]+$ ]] && [[ "$lim" -gt 0 ]]; then
-            local PIDS
-            PIDS=$(ps -u "$u" -o pid= 2>/dev/null)
-            local N=$(echo "$PIDS" | grep -c '[0-9]')
-            if (( N > lim )); then
-                echo "$PIDS" | tail -n +$((lim + 1)) | xargs -r kill -9 2>/dev/null
-            fi
-        fi
-    done < "$DB_USERS"
-}
-
-if [[ "${1:-}" == "--check" ]]; then
-    verificar_y_limpiar
-    exit 0
-fi
-
-# Obtener uptime formateado
+# ─────────────────────────────────────────────────────────────
+# PANEL
+# ─────────────────────────────────────────────────────────────
 _get_uptime() {
-    local up_sec=$(cat /proc/uptime 2>/dev/null | awk '{print int($1)}')
-    [[ -z "$up_sec" ]] && echo "N/A" && return
-    local d=$((up_sec/86400))
-    local h=$(( (up_sec%86400)/3600 ))
-    local m=$(( (up_sec%3600)/60 ))
-    if (( d > 0 )); then
-        printf "%dd %dh %dm" $d $h $m
-    elif (( h > 0 )); then
-        printf "%dh %dm" $h $m
-    else
-        printf "%dm" $m
+    local up d h m
+    up=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)
+    up=$(_num "$up")
+    (( up <= 0 )) && { printf '%s' "N/A"; return; }
+    d=$(( up / 86400 )); h=$(( (up % 86400) / 3600 )); m=$(( (up % 3600) / 60 ))
+    if   (( d > 0 )); then printf '%dd %dh %dm' "$d" "$h" "$m"
+    elif (( h > 0 )); then printf '%dh %dm' "$h" "$m"
+    else                   printf '%dm' "$m"
     fi
 }
 
 mostrar_pantalla_monitor() {
-    clear
-    local ARCH=$(uname -m)
-    local RAM_TOTAL=$(free -m 2>/dev/null | awk '/Mem:/ {print $2}')
-    local RAM_USED=$(free -m 2>/dev/null | awk '/Mem:/ {print $3}')
-    local RAM_PCT=$(( RAM_TOTAL > 0 ? RAM_USED * 100 / RAM_TOTAL : 0 ))
-    local CPU_PCT=$(top -bn1 2>/dev/null | awk -F'id,' '/Cpu/ {split($1,a,","); printf("%.0f",100-a[length(a)])}')
-    [[ -z "$CPU_PCT" ]] && CPU_PCT=0
-    local IP_PUB=$(cat "$BASE/.pub_ip" 2>/dev/null || curl -4 -s --max-time 2 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')
-    local DOMINIO=$(cat "$BASE/dominio" 2>/dev/null || echo "${IP_PUB:-127.0.0.1}")
-    local UPTIME=$(_get_uptime)
-    local FECHA=$(date +"%d/%m/%Y %H:%M:%S")
+    [[ -t 1 ]] && clear
 
-    # Leer tráfico
-    read -r TOTAL_DOWN TOTAL_UP < <(_leer_trafico_diario)
-    local TOTAL_DAY=$(( TOTAL_DOWN + TOTAL_UP ))
-    local VPS_TOTAL=$(_leer_trafico_vps)
+    local HOSTN RAM_TOTAL RAM_USED RAM_PCT CPU_PCT UPTIME FECHA
+    HOSTN=$(hostname 2>/dev/null || echo "localhost")
 
-    # Contar conexiones activas
-    local UDP_CONN=0 ZIVPN_CONN=0 BADVPN_CONN=0 SSH_CONN=0
-    
-    # UDP Custom
-    UDP_CONN=$(ss -unp 2>/dev/null | grep -cE ":36712|udp-custom" 2>/dev/null || echo 0)
-    
-    # ZiVPN
-    ZIVPN_CONN=0
-    if [[ -s "$DIR_ZIVPN/conexiones.db" ]]; then
-        ZIVPN_CONN=$(awk -F'|' '$5=="ok"' "$DIR_ZIVPN/conexiones.db" 2>/dev/null | wc -l)
-    fi
-    
-    # BadVPN
-    BADVPN_CONN=$(ss -unp 2>/dev/null | grep -cE ":7[0-9]{3}" 2>/dev/null || echo 0)
-    
-    # SSH
-    SSH_CONN=$(ps -eo user,args 2>/dev/null | grep -cE "sshd:.*@" 2>/dev/null || echo 0)
-    SSH_CONN=$(( SSH_CONN + $(ps -eo user,args 2>/dev/null | grep -cE "dropbear.*\[[0-9]+\]" 2>/dev/null || echo 0) ))
+    RAM_TOTAL=$(free -m 2>/dev/null | awk '/Mem:/{print $2+0}')
+    RAM_USED=$(free -m 2>/dev/null | awk '/Mem:/{print $3+0}')
+    RAM_TOTAL=$(_num "$RAM_TOTAL"); RAM_USED=$(_num "$RAM_USED")
+    RAM_PCT=0
+    (( RAM_TOTAL > 0 )) && RAM_PCT=$(( RAM_USED * 100 / RAM_TOTAL ))
 
-    local TOTAL_CONN=$(( UDP_CONN + ZIVPN_CONN + BADVPN_CONN + SSH_CONN ))
+    CPU_PCT=$(top -bn1 2>/dev/null | awk -F',' '/Cpu\(s\)|^%Cpu/ {for(i=1;i<=NF;i++) if ($i ~ /id/) {gsub(/[^0-9.]/,"",$i); printf "%.0f", 100-$i; exit}}')
+    CPU_PCT=$(_num "${CPU_PCT%%.*}")
+    (( CPU_PCT > 100 )) && CPU_PCT=100
 
-    # Cuentas SSH registradas
-    local SSH_REG=0
-    [[ -f "$DB_USERS" ]] && SSH_REG=$(grep -cv '^#' "$DB_USERS" 2>/dev/null || echo 0)
+    UPTIME=$(_get_uptime)
+    FECHA=$(date +"%d/%m/%Y %H:%M:%S")
 
-    # ===== HEADER =====
-    echo -e "${CYN}╔════════════════════════════════════════════════════════════════════════════════════════════════╗${RST}"
-    echo -e " ${BLD}${GRN}     █▀█ █▀▄ █▀▄ ▀█▀ █▀▀   █▄░█ █▀▀ ▀█▀                               ${RST}"
-    echo -e " ${BLD}${GRN}     █▀█ █▀▄ █▀▄ ░█░ ██▄   █░▀█ ██▄ ░█░                               ${RST}"
-    echo -e "                                                                       ${RST}"
-    echo -e " ${BLD}${GRN}        ⟐  M O N I T O R   D E   C O N E X I O N E S  ⟐               ${RST}"
-    echo -e " ${BLD}${GRN}                  v2.8 · Panel en Vivo                             ${RST}"
-    echo -e "${CYN}╚════════════════════════════════════════════════════════════════════════════════════════════════╝${RST}"
-    echo ""
-    echo -e "${CYN}┌──────────────────────────────────────────────────────────────────────────────────────────────┐${RST}"
-    printf " ${CYN}│${RST}  ${GRN}● EN VIVO${RST}  │  ${WHT}%s${RST}  │  ${WHT}⏱ %s${RST}  │  ${WHT}🖥 %s${RST}%*s${CYN}│${RST}\n" \
-        "$FECHA" "$UPTIME" "$(hostname)" $(( 60 - ${#FECHA} - ${#UPTIME} - ${#$(hostname)} )) ""
-    echo -e "${CYN}└──────────────────────────────────────────────────────────────────────────────────────────────┘${RST}"
-    echo ""
+    # ── Tráfico real del día ──
+    _actualizar_baseline
+    local TR_DIA TR_RX TR_TX
+    TR_DIA=$(_trafico_dia)
+    TR_RX=$(_num "$(echo "$TR_DIA" | awk '{print $1}')")
+    TR_TX=$(_num "$(echo "$TR_DIA" | awk '{print $2}')")
+    local TR_TOTAL=$(( TR_RX + TR_TX ))
 
-    # ===== CONEXIONES ACTIVAS =====
-    echo -e "${CYN}─── CONEXIONES ACTIVAS ──────────────────────────────────────────────────────────────────────${RST}"
-    echo ""
-    echo -e "               ${CYN}┌────────────────────────────────────┐${RST}"
-    printf "               ${CYN}│${RST}       ${WHT}███  TOTAL: %d   cliente(s)${RST}   ${CYN}│${RST}\n" $TOTAL_CONN
-    echo -e "               ${CYN}│${RST}       ${WHT}███${RST}                          ${CYN}│${RST}"
-    echo -e "               ${CYN}└────────────────────────────────────┘${RST}"
-    echo -e " desglose: udp ${UDP_CONN} · zivpn ${ZIVPN_CONN} · badvpn ${BADVPN_CONN} · ssh ${SSH_CONN}"
-    echo ""
-    echo -e " ─── SERVICIOS ────────────────────────────────────────────────────────────────────────────"
-    echo ""
+    local IFACE VPS_TOTAL
+    IFACE=$(_iface)
+    VPS_TOTAL=$(( $(_num "$(_iface_rx "$IFACE")") + $(_num "$(_iface_tx "$IFACE")") ))
 
-    # UDP Custom
-    local UDP_STATUS="${GRN}● EN FUNCIONAMIENTO${RST}"
-    [[ $UDP_CONN -eq 0 ]] && UDP_STATUS="${YEL}○ SIN CONEXIONES${RST}"
-    printf "   ${GRN}●${RST} UDP Custom   :36712       ${WHT}%d activo(s)${RST}   ${CYN}%s${RST}\n" $UDP_CONN "$(_dibujar_barra 0 12)"
-    
-    # ZiVPN
-    local ZIVPN_STATUS="${GRN}● EN FUNCIONAMIENTO${RST}"
-    [[ $ZIVPN_CONN -eq 0 ]] && ZIVPN_STATUS="${YEL}○ SIN CONEXIONES${RST}"
-    printf "   ${GRN}●${RST} ZiVPN (UDP)  :5667        ${WHT}%d en línea${RST}    ${CYN}%s${RST}\n" $ZIVPN_CONN "$(_dibujar_barra 0 12)"
-    
-    # BadVPN
-    local BADVPN_STATUS="${GRN}● EN FUNCIONAMIENTO${RST}"
-    [[ $BADVPN_CONN -eq 0 ]] && BADVPN_STATUS="${YEL}○ SIN CONEXIONES${RST}"
-    printf "   ${GRN}●${RST} BadVPN Gate  :7100-9900   ${WHT}%d túnel(es)${RST}   ${CYN}%s${RST}\n" $BADVPN_CONN "$(_dibujar_barra 0 12)"
-    
-    # SSH/Drop
-    local SSH_STATUS="${GRN}● EN FUNCIONAMIENTO${RST}"
-    [[ $SSH_CONN -eq 0 ]] && SSH_STATUS="${YEL}○ SIN SESIONES${RST}"
-    printf "   ${GRN}○${RST} SSH/Drop     :90          ${WHT}%d sesión(es)${RST}  ${CYN}%s${RST}\n" $SSH_CONN "$(_dibujar_barra 0 12)"
-    
-    echo ""
-    printf "   ${WHT}👥 Cuentas SSH registradas : %d (%d en línea)${RST}\n" $SSH_REG $SSH_CONN
-    echo ""
+    # ── Conexiones reales ──
+    local UDP_CONN ZIVPN_CONN ZIVPN_ACT ZIVPN_PASS BADVPN_CONN SSH_CONN TOTAL_CONN SSH_REG SSH_ON
+    UDP_CONN=$(_udp_clientes 36712)
+    BADVPN_CONN=$(_badvpn_conex)
+    SSH_CONN=$(_ssh_sesiones)
+    SSH_ON=$(_ssh_online)
+    SSH_REG=$(grep -cv '^#' "$DB_USERS" 2>/dev/null)
+    SSH_REG=$(_num "$SSH_REG")
 
-    # ===== UDP CUSTOM DETALLADO =====
-    echo -e "${CYN}─── 🚀 UDP CUSTOM · Estado, Sesiones y Credenciales ──────────────────────────────────────${RST}"
-    echo ""
-    echo -e "   ${GRN}●${RST} Estado del Servicio : EN FUNCIONAMIENTO (Puerto UDP :36712)"
-    printf "   ${WHT}⚡ Usuarios conectados : %d IP(s) conectada(s) · %d usuario(s) en línea${RST}\n" $UDP_CONN $UDP_CONN
-    echo ""
-    
-    # Tabla UDP Custom
-    local COL1=18 COL2=10 COL3=20 COL4=18
-    local TOP="┌$(_abb_rep '─' $COL1)┬$(_abb_rep '─' $COL2)┬$(_abb_rep '─' $COL3)┬$(_abb_rep '─' $COL4)┐"
-    local MID="├$(_abb_rep '─' $COL1)┼$(_abb_rep '─' $COL2)┼$(_abb_rep '─' $COL3)┼$(_abb_rep '─' $COL4)┤"
-    local BOT="└$(_abb_rep '─' $COL1)┴$(_abb_rep '─' $COL2)┴$(_abb_rep '─' $COL3)┴$(_abb_rep '─' $COL4)┘"
-    
-    echo -e "   ${GRY}${TOP}${RST}"
-    printf "   ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST}\n" \
-        "$(_abb_celda 'USUARIO SSH' $COL1)" "$(_abb_celda 'DISP.' $COL2)" "$(_abb_celda 'ÚLTIMA CONEXIÓN' $COL3)" "$(_abb_celda 'ESTADO' $COL4)"
-    echo -e "   ${GRY}${MID}${RST}"
-    
-    # Leer usuarios UDP de la DB si existe
-    local UDP_HAY=0
-    if [[ -f "$DB_USERS" ]]; then
-        while IFS=: read -r u pass exp lim; do
-            [[ -z "$u" || "$u" =~ ^# ]] && continue
-            # Verificar si tiene conexiones UDP activas
-            local ULT_CONEX="Nunca"
-            local ESTADO="${RED}○ apagada${RST}"
-            # Buscar en ps/ss si tiene conexiones UDP activas
-            if ss -unp 2>/dev/null | grep -q "user=$u"; then
-                ULT_CONEX=$(date +"%Y-%m-%d %H:%M:%S")
-                ESTADO="${GRN}● hace 1s${RST}"
-                UDP_HAY=1
+    local ZIV_DATOS
+    ZIV_DATOS=$(_zivpn_resumen)
+    ZIVPN_CONN=$(printf '%s\n' "$ZIV_DATOS" | awk -F'|' 'NF>=2{c+=$2} END{print c+0}')
+    ZIVPN_CONN=$(_num "$ZIVPN_CONN")
+
+    local AHORA TS DIF
+    AHORA=$(date +%s)
+    ZIVPN_ACT=0; ZIVPN_PASS=0
+    if [[ -n "$ZIV_DATOS" ]]; then
+        while IFS='|' read -r zauth zcon zts; do
+            [[ -z "$zauth" ]] && continue
+            TS=$(_ts_epoch "$zts")
+            (( TS <= 0 )) && continue
+            DIF=$(( AHORA - TS ))
+            if (( DIF <= 60 )); then
+                ZIVPN_PASS=$(( ZIVPN_PASS + 1 ))
+                ZIVPN_ACT=$(( ZIVPN_ACT + $(_num "$zcon") ))
             fi
-            printf "   ${GRY}│${RST} ${GRN}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} %s ${GRY}│${RST}\n" \
-                "$(_abb_celda "$u" $COL1)" "$(_abb_celda "$lim" $COL2)" "$(_abb_celda "$ULT_CONEX" $COL3)" "$ESTADO"
-        done < "$DB_USERS"
+        done <<< "$ZIV_DATOS"
     fi
-    
-    if [[ $UDP_HAY -eq 0 ]]; then
-        printf "   ${GRY}│${RST} %-70s ${GRY}│${RST}\n" "           (Sin usuarios UDP conectados en este momento)"
-    fi
-    echo -e "   ${GRY}${BOT}${RST}"
-    echo -e " ${UDP_CONN} IP(s) conectada(s) · ${UDP_CONN} usuario(s) en línea · 0 apagada(s) · ${GRN}●${RST}/${YEL}◐${RST} = actividad en los últimos 120 s · ${RED}○${RST} = apagada"
+
+    TOTAL_CONN=$(( UDP_CONN + ZIVPN_ACT + BADVPN_CONN + SSH_CONN ))
+
+    # ═══════════════ CABECERA ═══════════════
+    printf '%b\n' "${CYN}╔$(_rep '═' 72)╗${RST}"
+    printf '%b\n' "${CYN}    ███╗   ███╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗${RST}"
+    printf '%b\n' "${CYN}    ████╗ ████║██╔══██╗╚██╗██╔╝██║████╗  ██║██╔════╝╚══██╔══╝${RST}"
+    printf '%b\n' "${CYN}    ██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   ${RST}"
+    printf '%b\n' "${CYN}    ██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   ${RST}"
+    printf '%b\n' "${CYN}    ██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   ${RST}"
+    printf '%b\n' "${CYN}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ${RST}"
+    printf '%b\n' "${CYN}╚$(_rep '═' 72)╝${RST}"
+    printf '%b\n' " ${BLD}${GRN}      ⟐  M O N I T O R   D E   C O N E X I O N E S  ⟐${RST}"
+    printf '%b\n' " ${BLD}${GOL}                    v2.9 · Panel en Vivo${RST}"
     echo ""
 
-    # ===== ZIVPN DETALLADO =====
-    echo -e "${CYN}─── ⚡ ZIVPN · Estado, Sesiones y Credenciales ────────────────────────────────────────${RST}"
+    # ═══════════════ BARRA EN VIVO ═══════════════
+    printf '%b\n' "${CYN}$(_rep '─' 72)${RST}"
+    printf '%b\n' "  ${GRN}● EN VIVO${RST}  │  ${WHT}${FECHA}${RST}  │  ${WHT}⏱ ${UPTIME}${RST}  │  ${WHT}🖥 ${HOSTN}${RST}"
+    printf '%b\n' "${CYN}$(_rep '─' 72)${RST}"
     echo ""
-    echo -e "   ${GRN}●${RST} Estado del Servicio : EN FUNCIONAMIENTO (Puerto UDP :5667)"
-    printf "   ${WHT}⚡ Usuarios conectados : %d conectado(s) · %d contraseña(s) en línea${RST}\n" $ZIVPN_CONN $ZIVPN_CONN
+
+    # ═══════════════ CONEXIONES ACTIVAS ═══════════════
+    _sep "CONEXIONES ACTIVAS"
     echo ""
-    
-    local COL1Z=18 COL2Z=10 COL3Z=20 COL4Z=12
-    local TOPZ="┌$(_abb_rep '─' $COL1Z)┬$(_abb_rep '─' $COL2Z)┬$(_abb_rep '─' $COL3Z)┬$(_abb_rep '─' $COL4Z)┐"
-    local MIDZ="├$(_abb_rep '─' $COL1Z)┼$(_abb_rep '─' $COL2Z)┼$(_abb_rep '─' $COL3Z)┼$(_abb_rep '─' $COL4Z)┤"
-    local BOTZ="└$(_abb_rep '─' $COL1Z)┴$(_abb_rep '─' $COL2Z)┴$(_abb_rep '─' $COL3Z)┴$(_abb_rep '─' $COL4Z)┘"
-    
-    echo -e "   ${GRY}${TOPZ}${RST}"
-    printf "   ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST}\n" \
-        "$(_abb_celda 'CONTRASEÑA' $COL1Z)" "$(_abb_celda 'USUARIOS' $COL2Z)" "$(_abb_celda 'ÚLTIMA CONEXIÓN' $COL3Z)" "$(_abb_celda 'ESTADO' $COL4Z)"
-    echo -e "   ${GRY}${MIDZ}${RST}"
-    
-    local ZIVPN_HAY=0
-    if [[ -s "$DIR_ZIVPN/conexiones.db" ]]; then
-        while IFS='|' read -r fecha addr auth tx res; do
-            [[ "$res" != "ok" ]] && continue
-            local ULT=$(date -d "$fecha" +"%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "$fecha")
-            local DIFF=$(( $(date +%s) - $(date -d "$fecha" +%s 2>/dev/null || echo 0) ))
-            local ESTADO="${GRN}● hace ${DIFF}s${RST}"
-            [[ $DIFF -gt 60 ]] && ESTADO="${YEL}◐ hace ${DIFF}s${RST}"
-            [[ $DIFF -gt 3600 ]] && ESTADO="${RED}○ hace $((DIFF/3600))h${RST}"
-            printf "   ${GRY}│${RST} ${YEL}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} ${WHT}%s${RST} ${GRY}│${RST} %s ${GRY}│${RST}\n" \
-                "$(_abb_celda "$auth" $COL1Z)" "$(_abb_celda "1" $COL2Z)" "$(_abb_celda "$ULT" $COL3Z)" "$ESTADO"
-            ZIVPN_HAY=1
-        done < <(tail -n 20 "$DIR_ZIVPN/conexiones.db")
+    printf '%b\n' "               ${CYN}┌────────────────────────────────────┐${RST}"
+    printf '%b\n' "               ${CYN}│${RST}       ${WHT}███  TOTAL: ${TOTAL_CONN}   cliente(s)${RST}   ${CYN}│${RST}"
+    printf '%b\n' "               ${CYN}│${RST}       ${WHT}███${RST}                          ${CYN}│${RST}"
+    printf '%b\n' "               ${CYN}└────────────────────────────────────┘${RST}"
+    printf '%b\n' " desglose: udp ${UDP_CONN} · zivpn ${ZIVPN_ACT} · badvpn ${BADVPN_CONN} · ssh ${SSH_CONN}"
+    echo ""
+
+    # ═══════════════ SERVICIOS ═══════════════
+    _sep "SERVICIOS"
+    echo ""
+    printf '%b\n' "   ${GRN}●${RST} UDP Custom   :36712        ${WHT}${UDP_CONN} activo(s)${RST}    ${CYN}$(_barra "$(_pct10 "$UDP_CONN")" 14)${RST}"
+    printf '%b\n' "   ${GRN}●${RST} ZiVPN (UDP)  :5667         ${WHT}${ZIVPN_ACT} en línea${RST}    ${CYN}$(_barra "$(_pct10 "$ZIVPN_ACT")" 14)${RST}"
+    printf '%b\n' "   ${GRN}●${RST} BadVPN Gate  :7100-9900    ${WHT}${BADVPN_CONN} túnel(es)${RST}    ${CYN}$(_barra "$(_pct10 "$BADVPN_CONN")" 14)${RST}"
+    printf '%b\n' "   ${GRN}●${RST} SSH/Drop     :90           ${WHT}${SSH_CONN} sesión(es)${RST}   ${CYN}$(_barra "$(_pct10 "$SSH_CONN")" 14)${RST}"
+    echo ""
+    printf '%b\n' "   ${WHT}👥 Cuentas SSH registradas : ${SSH_REG} (${SSH_ON} en línea)${RST}"
+    echo ""
+
+    # ═══════════════ UDP CUSTOM ═══════════════
+    _sep "🚀 UDP CUSTOM · Estado, Sesiones y Credenciales"
+    echo ""
+    if systemctl is-active --quiet udp-custom 2>/dev/null || ss -Hun 2>/dev/null | grep -q ':36712'; then
+        printf '%b\n' "   ${GRN}●${RST} Estado del Servicio : EN FUNCIONAMIENTO (Puerto UDP :36712)"
+    else
+        printf '%b\n' "   ${RED}●${RST} Estado del Servicio : DETENIDO (Puerto UDP :36712)"
     fi
-    
-    if [[ $ZIVPN_HAY -eq 0 ]]; then
-        printf "   ${GRY}│${RST} %-60s ${GRY}│${RST}\n" "           (Sin conexiones ZiVPN activas en este instante)"
+    printf '%b\n' "   ${WHT}⚡ Usuarios conectados : ${UDP_CONN} IP(s) conectada(s) · ${UDP_CONN} usuario(s) en línea${RST}"
+    echo ""
+
+    local C1=18 C2=9 C3=21 C4=18
+    printf '%b\n' "   ${GRY}┌$(_rep '─' $C1)┬$(_rep '─' $C2)┬$(_rep '─' $C3)┬$(_rep '─' $C4)┐${RST}"
+    printf '%b\n' "   ${GRY}│${RST} ${WHT}$(_celda 'USUARIO SSH' $C1)${RST} ${GRY}│${RST} ${WHT}$(_celda 'DISP.' $C2)${RST} ${GRY}│${RST} ${WHT}$(_celda 'ULTIMA CONEXION' $C3)${RST} ${GRY}│${RST} ${WHT}$(_celda 'ESTADO' $C4)${RST} ${GRY}│${RST}"
+    printf '%b\n' "   ${GRY}├$(_rep '─' $C1)┼$(_rep '─' $C2)┼$(_rep '─' $C3)┼$(_rep '─' $C4)┤${RST}"
+
+    local HAYU=0 ULT EST ONL
+    while IFS=: read -r u _pass _exp lim; do
+        [[ -z "$u" || "$u" =~ ^# ]] && continue
+        HAYU=1
+        ULT=$(_ultima_conexion "$u")
+        ONL=$(who 2>/dev/null | awk -v us="$u" '$1==us' | wc -l)
+        ONL=$(_num "$ONL")
+        if (( ONL > 0 )); then
+            EST="${GRN}● en línea${RST}"
+        else
+            EST="${RED}○ apagada${RST}"
+        fi
+        printf '%b\n' "   ${GRY}│${RST} ${GRN}$(_celda "$u" $C1)${RST} ${GRY}│${RST} ${WHT}$(_celda "${lim:-0}" $C2)${RST} ${GRY}│${RST} ${WHT}$(_celda "$ULT" $C3)${RST} ${GRY}│${RST} ${EST} ${GRY}│${RST}"
+    done < "$DB_USERS"
+
+    if (( HAYU == 0 )); then
+        printf '%b\n' "   ${GRY}│${RST} ${GRY}(sin cuentas registradas)${RST}"
     fi
-    echo -e "   ${GRY}${BOTZ}${RST}"
-    echo -e " ${ZIVPN_CONN} contraseña(s) en línea · ${ZIVPN_CONN} usuario(s) conectado(s) · 0 apagada(s) · ${GRN}●${RST}/${YEL}◐${RST} = conectada en los últimos 60 s · ${RED}○${RST} = apagada"
+    printf '%b\n' "   ${GRY}└$(_rep '─' $C1)┴$(_rep '─' $C2)┴$(_rep '─' $C3)┴$(_rep '─' $C4)┘${RST}"
+    printf '%b\n' " ${UDP_CONN} IP(s) conectada(s) · ${UDP_CONN} usuario(s) en línea · ${GRN}●${RST} = sesión SSH activa · ${RED}○${RST} = sin sesión"
     echo ""
 
-    # ===== TRÁFICO DEL DÍA =====
-    echo -e "${CYN}─── 📊 TRÁFICO DEL DÍA (desde 00:00) ───────────────────────────────────────────────────${RST}"
+    # ═══════════════ ZIVPN ═══════════════
+    _sep "⚡ ZIVPN · Estado, Sesiones y Credenciales"
     echo ""
-    local DOWN_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_DOWN / 1073741824}")
-    local UP_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_UP / 1073741824}")
-    local TOTAL_GB=$(awk "BEGIN {printf \"%.2f\", $TOTAL_DAY / 1073741824}")
-    local VPS_GB=$(awk "BEGIN {printf \"%.2f\", $VPS_TOTAL / 1073741824}")
-    
-    printf "      ${YEL}▼ Descarga : %s GB${RST}\n" "$DOWN_GB"
-    printf "      ${GRN}▲ Subida   : %s GB${RST}\n" "$UP_GB"
-    echo -e "      ${CYN}──────────────────────────────${RST}"
-    printf "      ${MAG}◆ Total día: %s GB${RST}     ${CYN}%s${RST}\n" "$TOTAL_GB" "$(_dibujar_barra 50 20)"
-    local VPS_PCT=0
-    [[ $VPS_TOTAL -gt 0 ]] && VPS_PCT=$(( TOTAL_DAY * 100 / VPS_TOTAL ))
-    [[ $VPS_PCT -gt 100 ]] && VPS_PCT=100
-    printf "      ${MAG}◆ Total VPS: %s GB${RST}     ${CYN}%s${RST}\n" "$VPS_GB" "$(_dibujar_barra $VPS_PCT 20)"
+    if ss -Hun 2>/dev/null | grep -q ':5667' || systemctl is-active --quiet zivpn 2>/dev/null; then
+        printf '%b\n' "   ${GRN}●${RST} Estado del Servicio : EN FUNCIONAMIENTO (Puerto UDP :5667)"
+    else
+        printf '%b\n' "   ${RED}●${RST} Estado del Servicio : DETENIDO (Puerto UDP :5667)"
+    fi
+    printf '%b\n' "   ${WHT}⚡ Usuarios conectados : ${ZIVPN_ACT} conectado(s) · ${ZIVPN_PASS} contraseña(s) en línea${RST}"
     echo ""
 
-    # ===== SISTEMA =====
-    echo -e "${CYN}─── 🖥 SISTEMA ───────────────────────────────────────────────────────────────────────────${RST}"
-    echo ""
-    
-    # CPU bar
-    local CPU_BAR=$(_dibujar_barra $CPU_PCT 20)
-    printf "      ${WHT}CPU    %3d%%  %s${RST}\n" $CPU_PCT "$CPU_BAR"
-    
-    # RAM bar
-    local RAM_BAR=$(_dibujar_barra $RAM_PCT 20)
-    printf "      ${WHT}RAM    %3d%%  %s  %dMB / %dMB${RST}\n" $RAM_PCT "$RAM_BAR" $RAM_USED $RAM_TOTAL
+    local Z1=18 Z2=9 Z3=21 Z4=12
+    printf '%b\n' "   ${GRY}┌$(_rep '─' $Z1)┬$(_rep '─' $Z2)┬$(_rep '─' $Z3)┬$(_rep '─' $Z4)┐${RST}"
+    printf '%b\n' "   ${GRY}│${RST} ${WHT}$(_celda 'CONTRASEÑA' $Z1)${RST} ${GRY}│${RST} ${WHT}$(_celda 'USUARIOS' $Z2)${RST} ${GRY}│${RST} ${WHT}$(_celda 'ULTIMA CONEXION' $Z3)${RST} ${GRY}│${RST} ${WHT}$(_celda 'ESTADO' $Z4)${RST} ${GRY}│${RST}"
+    printf '%b\n' "   ${GRY}├$(_rep '─' $Z1)┼$(_rep '─' $Z2)┼$(_rep '─' $Z3)┼$(_rep '─' $Z4)┤${RST}"
+
+    local HAYZ=0 ZE ZF
+    if [[ -n "$ZIV_DATOS" ]]; then
+        while IFS='|' read -r zauth zcon zts; do
+            [[ -z "$zauth" ]] && continue
+            HAYZ=1
+            ZE=$(_ts_epoch "$zts")
+            if (( ZE <= 0 )); then
+                ZF="${GRY}—${RST}"
+            elif (( AHORA - ZE <= 60 )); then
+                ZF="${GRN}● $(_relativo "$ZE")${RST}"
+            elif (( AHORA - ZE <= 3600 )); then
+                ZF="${YEL}◐ $(_relativo "$ZE")${RST}"
+            else
+                ZF="${RED}○ $(_relativo "$ZE")${RST}"
+            fi
+            printf '%b\n' "   ${GRY}│${RST} ${GOL}$(_celda "$zauth" $Z1)${RST} ${GRY}│${RST} ${WHT}$(_celda "$zcon" $Z2)${RST} ${GRY}│${RST} ${WHT}$(_celda "$zts" $Z3)${RST} ${GRY}│${RST} ${ZF} ${GRY}│${RST}"
+        done <<< "$ZIV_DATOS"
+    fi
+
+    if (( HAYZ == 0 )); then
+        printf '%b\n' "   ${GRY}│${RST} ${GRY}(sin registros en ${ZIVPN_CONEX})${RST}"
+    fi
+    printf '%b\n' "   ${GRY}└$(_rep '─' $Z1)┴$(_rep '─' $Z2)┴$(_rep '─' $Z3)┴$(_rep '─' $Z4)┘${RST}"
+    printf '%b\n' " ${ZIVPN_PASS} contraseña(s) en línea · ${ZIVPN_ACT} usuario(s) conectado(s) · ${GRN}●${RST} = activa ≤60 s · ${YEL}◐${RST} = ≤1 h · ${RED}○${RST} = inactiva"
     echo ""
 
-    # ===== FOOTER =====
-    echo -e "${CYN}══════════════════════════════════════════════════════════════════════════════════════════════════════${RST}"
-    echo -e "  ${CYN}[ENTER]/[R] Actualizar${RST}        ${CYN}[K] Purgar flujos ZiVPN ociosos${RST}        ${RED}[0] Volver${RST}"
-    echo -e "${CYN}═════════════════════════════════════════════════════════════════════════════════════════════════════${RST}"
-    echo -n "  ► "
+    # ═══════════════ TRÁFICO ═══════════════
+    _sep "📊 TRÁFICO DEL DÍA (desde 00:00)"
+    echo ""
+    local P_DIA=0 P_VPS=100
+    (( VPS_TOTAL > 0 )) && P_DIA=$(( TR_TOTAL * 100 / VPS_TOTAL ))
+    (( P_DIA > 100 )) && P_DIA=100
+    printf '%b\n' "      ${YEL}▼ Descarga : $(_gb "$TR_RX") GB${RST}"
+    printf '%b\n' "      ${GRN}▲ Subida   : $(_gb "$TR_TX") GB${RST}"
+    printf '%b\n' "      ${CYN}──────────────────────────────${RST}"
+    printf '%b\n' "      ${MAG}◆ Total día: $(_gb "$TR_TOTAL") GB${RST}     ${CYN}$(_barra "$P_DIA" 20)${RST} ${WHT}${P_DIA}%${RST}"
+    printf '%b\n' "      ${MAG}◆ Total VPS: $(_gb "$VPS_TOTAL") GB${RST}     ${CYN}$(_barra "$P_VPS" 20)${RST} ${WHT}acumulado${RST}"
+    printf '%b\n' "      ${GRY}interfaz ${IFACE} · base del día ${BASELINE}${RST}"
+    echo ""
+
+    # ═══════════════ SISTEMA ═══════════════
+    _sep "🖥 SISTEMA"
+    echo ""
+    printf '%b\n' "      ${WHT}CPU    ${CPU_PCT}%  $(_barra "$CPU_PCT" 20)${RST}"
+    printf '%b\n' "      ${WHT}RAM    ${RAM_PCT}%  $(_barra "$RAM_PCT" 20)  ${RAM_USED}MB / ${RAM_TOTAL}MB${RST}"
+    echo ""
+
+    # ═══════════════ PIE ═══════════════
+    printf '%b\n' "${CYN}$(_rep '═' 74)${RST}"
+    printf '%b\n' "  ${CYN}[ENTER]/[R] Actualizar${RST}      ${CYN}[K] Purgar flujos ZiVPN ociosos${RST}      ${RED}[0] Volver${RST}"
+    printf '%b\n' "${CYN}$(_rep '═' 74)${RST}"
+    printf '%b' "  ► "
 }
+
+purgar_flujos_zivpn() {
+    if ! command -v conntrack >/dev/null 2>&1; then
+        echo -e " ${YEL}⚠${RST} conntrack no instalado: apt install conntrack-tools"
+        return 1
+    fi
+    local antes despues
+    antes=$(conntrack -C 2>/dev/null); antes=$(_num "$antes")
+    conntrack -D -p udp --dport 5667 --state UNREPLIED >/dev/null 2>&1
+    despues=$(conntrack -C 2>/dev/null); despues=$(_num "$despues")
+    echo -e " ${GRN}✔${RST} Flujos ZiVPN sin respuesta purgados: $(( antes - despues )) entrada(s) liberada(s)."
+    echo -e " ${GRY}Los flujos activos NO se tocaron.${RST}"
+}
+
+# ─────────────────────────────────────────────────────────────
+# ARGUMENTOS
+# ─────────────────────────────────────────────────────────────
+case "${1:-}" in
+    --check)          verificar_y_limpiar; exit 0 ;;
+    --snapshot-iface) _actualizar_baseline; exit 0 ;;
+    --install-service) activar_servicio_monitor; exit 0 ;;
+    --stop-service)   detener_servicio_monitor; exit 0 ;;
+    --status)
+        printf 'monitor=%s\n' "$(systemctl is-active maxinet-monitor.service 2>/dev/null || echo inactive)"
+        printf 'udp=%s\n' "$(_udp_clientes 36712)"
+        printf 'badvpn=%s\n' "$(_badvpn_conex)"
+        printf 'ssh=%s\n' "$(_ssh_sesiones)"
+        exit 0
+        ;;
+    --help|-h)
+        echo "Uso: $0 [--check|--snapshot-iface|--install-service|--stop-service|--status]"
+        echo "  Sin argumentos: panel interactivo (Monitor Conectados En Vivo)."
+        exit 0
+        ;;
+esac
+
+# Sin terminal: renderizar una sola vez y salir (nunca colgar un instalador)
+if [[ ! -t 0 ]]; then
+    mostrar_pantalla_monitor
+    echo ""
+    exit 0
+fi
 
 # Bucle interactivo
 while true; do
     mostrar_pantalla_monitor
-    read -r OPC_M
+    if ! read -r OPC_M; then
+        break
+    fi
     case "$OPC_M" in
-        ""|r|R) ;;  # Refrescar con ENTER o R
-        k|K) 
+        ""|r|R) ;;
+        k|K)
+            echo ""
+            purgar_flujos_zivpn
             verificar_y_limpiar
-            echo -e " ${GRN}✔${RST} Verificación y purga completada."
             sleep 2
             ;;
-        0) break ;;
+        0|q|Q) break ;;
         *) ;;
     esac
 done

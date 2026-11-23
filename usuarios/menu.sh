@@ -20,7 +20,7 @@ fi
 # i18n shim (auto) — evita "trx: command not found" si lang.sh no existe
 if ! declare -F trx >/dev/null 2>&1; then trx() { printf '%s' "$1"; }; fi
 
-# Paleta premium ANSI-256 (banner oficial v2.8)
+# Paleta premium ANSI-256 (banner oficial v2.9)
 CYAN="${MV_CYN}"; BLUE="${MV_BLU}"; GOLD="${MV_GLD}"; GREEN="${MV_GRN}"
 RED="${MV_RED}"; WHITE="${MV_WHT}"; MAGENTA="${MV_MAG}"; RESET="${MV_R}"
 

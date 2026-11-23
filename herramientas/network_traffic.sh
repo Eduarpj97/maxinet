@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.8
+# Maxinet Network Premium v2.9
 # Tráfico & Consumo (GB) · Contabilidad Real iptables
 # Rastreo real con iptables (IP + UID), límites de GB,
 # auto-bloqueo estricto y gráficas ASCII
@@ -329,7 +329,9 @@ trafico_instalar_servicio() {
     cat > "$BASE/scripts/trafico_cron.sh" << 'TEOF'
 #!/bin/bash
 BASE="/etc/maxinet"
-source "$BASE/herramientas/network_traffic.sh" --snapshot >/dev/null 2>&1
+# Base del día para el Monitor (se reinicia a las 00:00 reales)
+bash "$BASE/herramientas/monitor_en_vivo.sh" --snapshot-iface >/dev/null 2>&1
+bash "$BASE/herramientas/network_traffic.sh" --snapshot >/dev/null 2>&1
 TEOF
     chmod +x "$BASE/scripts/trafico_cron.sh"
 

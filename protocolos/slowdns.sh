@@ -598,7 +598,8 @@ try:
     for r in d.get('result',[]): print(r['name'])
 except: pass
 " 2>/dev/null)
-    ZCOUNT=$(echo "$ZONES" | grep -c . 2>/dev/null || echo 0)
+    ZCOUNT=$(echo "$ZONES" | grep -c . 2>/dev/null)
+    [[ "$ZCOUNT" =~ ^[0-9]+$ ]] || ZCOUNT=0
     if [[ -z "$ZONES" || "$ZCOUNT" -eq 0 ]]; then
         echo "$(trx '   ⚠️ No se pudieron consultar tus dominios (revisa Email/API Key).')"
         return 1

@@ -3607,7 +3607,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.8
+# Maxinet Network - Premium Welcome Banner v2.9
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -3844,7 +3844,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.8  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.9  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>
@@ -3873,12 +3873,12 @@ run_cmd "Reiniciando SSH y Dropbear" "$LINENO" "systemctl restart ssh 2>/dev/nul
 
 
 # ════════════════════════════════════════════════════════════════════
-# MÓDULOS FUNCIONALES COMPLETOS (v2.8)
+# MÓDULOS FUNCIONALES COMPLETOS (v2.9)
 # ════════════════════════════════════════════════════════════════════
 step "Configurando módulos funcionales completos (Monitor, Optimizador, Tráfico)..."
 
 # 1. Instalar dependencias necesarias
-run_cmd "Instalando dependencias (ethtool, iptables, procps, bc)" "$LINENO" "pkg_install ethtool iptables procps bc"
+run_cmd "Instalando dependencias (ethtool, iptables, procps, bc, conntrack)" "$LINENO" "pkg_install ethtool iptables procps bc conntrack-tools || pkg_install ethtool iptables procps bc conntrack"
 
 # 2. Configurar iptables accounting para Tráfico & Consumo (UID owner match)
 run_cmd "Configurando iptables accounting UID para Tráfico & Consumo" "$LINENO" "
@@ -3894,7 +3894,7 @@ run_cmd "Configurando iptables accounting UID para Tráfico & Consumo" "$LINENO"
 # 3. Instalar y habilitar maxinet-monitor.service (Monitor Conectados En Vivo)
 run_cmd "Instalando servicio Monitor Conectados (En Vivo)" "$LINENO" "
     if [[ -f /etc/maxinet/herramientas/monitor_en_vivo.sh ]]; then
-        bash /etc/maxinet/herramientas/monitor_en_vivo.sh --install-service
+        timeout 30 bash /etc/maxinet/herramientas/monitor_en_vivo.sh --install-service </dev/null
         systemctl daemon-reload
         systemctl enable maxinet-monitor.service >/dev/null 2>&1
         systemctl start maxinet-monitor.service >/dev/null 2>&1
@@ -3908,7 +3908,9 @@ run_cmd "Instalando cron Tráfico & Consumo (snapshot 1 min)" "$LINENO" "
         cat > /etc/maxinet/scripts/trafico_cron.sh << 'TROF'
 #!/bin/bash
 BASE="/etc/maxinet"
-source "$BASE/herramientas/network_traffic.sh" --snapshot >/dev/null 2>&1
+# Base del día para el Monitor (se reinicia a las 00:00 reales)
+bash "$BASE/herramientas/monitor_en_vivo.sh" --snapshot-iface >/dev/null 2>&1
+bash "$BASE/herramientas/network_traffic.sh" --snapshot >/dev/null 2>&1
 TROF
         chmod +x /etc/maxinet/scripts/trafico_cron.sh
         ( crontab -l 2>/dev/null | grep -v 'trafico_cron' ; echo '* * * * * /bin/bash /etc/maxinet/scripts/trafico_cron.sh >/dev/null 2>&1' ) | crontab -
@@ -3918,7 +3920,7 @@ TROF
 # 5. Configurar sysctl persistente para Optimizador de Red (Carrier Grade)
 run_cmd "Configurando sysctl persistente Optimizador Red (Carrier Grade)" "$LINENO" "
     cat > /etc/sysctl.d/99-maxinet-optimizer.conf << 'SYSCTL_EOF'
-# Maxinet Network v2.8 - Optimizador Carrier Grade
+# Maxinet Network v2.9 - Optimizador Carrier Grade
 # TCP BBR v3 + FQ Pacing
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
