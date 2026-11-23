@@ -42,7 +42,7 @@ TEMP_DIR="/tmp/maxinet-update-$$"
 
 clear
 TOP
-printf "${CYAN}║${RESET}  ${GOLD}🛡️  Maxinet Network${RESET}  ${WHITE}ACTUALIZADOR v${VERSION:-$(cat "$BASE/version.txt" 2>/dev/null || echo "3.0.3")}${RESET}${CYAN}           ║${RESET}\n"
+printf "${CYAN}║${RESET}  ${GOLD}🛡️  Maxinet Network${RESET}  ${WHITE}ACTUALIZADOR v${VERSION:-$(cat "$BASE/version.txt" 2>/dev/null || echo "3.0.4")}${RESET}${CYAN}           ║${RESET}\n"
 printf "${CYAN}║${RESET}  ${GRAY}maxinet-network.web.app${RESET}  ${GRAY}·${RESET}  ${WHITE}Actualizador${RESET}${CYAN}                    ║${RESET}\n"
 MID
 echo ""

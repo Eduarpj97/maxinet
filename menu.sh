@@ -198,12 +198,20 @@ CPU_CORES=$(nproc)
 IP=$(hostname -I 2>/dev/null | awk '{print $1}')
 
 PUB_CACHE="$SISTEMA/.pub_ip"
-PUBLIC_IP="-"
-if [[ -f "$PUB_CACHE" ]] && (( $(date +%s) - $(stat -c %Y "$PUB_CACHE" 2>/dev/null || echo 0) < 300 )); then
-    PUBLIC_IP=$(cat "$PUB_CACHE")
-else
-    PUBLIC_IP=$(curl -s --max-time 1 ifconfig.me 2>/dev/null || echo "-")
-    [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "$PUBLIC_IP" > "$PUB_CACHE" 2>/dev/null
+PUBLIC_IP="${SERVER_PUB_IP:-}"
+if [[ -z "$PUBLIC_IP" || "$PUBLIC_IP" == "-" ]]; then
+    if [[ -s "$PUB_CACHE" ]]; then
+        PUBLIC_IP=$(cat "$PUB_CACHE" 2>/dev/null)
+    fi
+fi
+[[ -z "$PUBLIC_IP" || "$PUBLIC_IP" == "-" ]] && PUBLIC_IP="$IP"
+
+# Refrescar IP pública en background sin bloquear el menú
+if [[ ! -s "$PUB_CACHE" ]] || (( $(date +%s) - $(stat -c %Y "$PUB_CACHE" 2>/dev/null || echo 0) > 43200 )); then
+    (
+        _pip=$(curl -s --max-time 2 ifconfig.me 2>/dev/null)
+        [[ "$_pip" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]] && echo "$_pip" > "$PUB_CACHE" 2>/dev/null
+    ) &>/dev/null &
 fi
 FECHA=$(date +"%d/%m/%Y %H:%M:%S")
 
@@ -211,14 +219,24 @@ read -r TOTAL_RAM_MB USED_RAM_MB FREE_RAM_MB <<<"$(free -m | awk '/Mem:/{print $
 TOTAL_RAM=${TOTAL_RAM_MB:-0}; USED_RAM=${USED_RAM_MB:-0}
 RAM_USE=$(( TOTAL_RAM > 0 ? USED_RAM*100/TOTAL_RAM : 0 ))
 
-CPU_READ_1=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat)
-sleep 0.1
-CPU_READ_2=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat)
-TOT1=${CPU_READ_1% *}; IDL1=${CPU_READ_1#* }
-TOT2=${CPU_READ_2% *}; IDL2=${CPU_READ_2#* }
+# CPU instantáneo sin sleep
 CPU_USE=0
-if [[ "$TOT2" != "$TOT1" ]]; then
-    CPU_USE=$(( ( (TOT2-TOT1) - (IDL2-IDL1) ) * 100 / (TOT2-TOT1) ))
+if [[ -r /proc/stat ]]; then
+    _now_stat=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat 2>/dev/null)
+    _stat_cache="/tmp/_maxinet_cpu_stat"
+    if [[ -f "$_stat_cache" ]]; then
+        read -r _prev_tot _prev_idl < "$_stat_cache" 2>/dev/null
+        TOT1=${_prev_tot:-0}; IDL1=${_prev_idl:-0}
+        TOT2=${_now_stat% *}; IDL2=${_now_stat#* }
+        if [[ "$TOT2" != "$TOT1" && -n "$TOT1" && "$TOT1" -gt 0 ]]; then
+            CPU_USE=$(( ( (TOT2-TOT1) - (IDL2-IDL1) ) * 100 / (TOT2-TOT1) ))
+        fi
+    fi
+    echo "$_now_stat" > "$_stat_cache" 2>/dev/null
+    if [[ "$CPU_USE" -le 0 ]]; then
+        _load1=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
+        CPU_USE=$(awk -v l="$_load1" -v c="${CPU_CORES:-1}" 'BEGIN { u = int((l/c)*100); if (u > 100) u=100; if (u < 0) u=0; print u }' 2>/dev/null || echo 0)
+    fi
 fi
 
 DISK=$(df -h / | awk 'NR==2 {print $5}')
@@ -377,38 +395,51 @@ TOTAL_CONN=$((SSH_CONN + DROP_CONN + UDP_C + BAD_C + ZIP_C + XRAY_C))
 #=========================================================
 
 CF_STATUS_LIVE="OFF"
-if [[ -n "$_DOM_EFF" ]]; then
-    _parent_domain=$(echo "$_DOM_EFF" | awk -F. '{print $(NF-1)"."$NF}')
-    CF_NS=$(dig +short NS "$_parent_domain" 2>/dev/null | grep -ci cloudflare)
-    [[ "$CF_NS" -gt 0 ]] && CF_STATUS_LIVE="ON"
-fi
 [[ "${CLOUDFLARE_STATUS:-OFF}" == "ON" ]] && CF_STATUS_LIVE="ON"
+if [[ "$CF_STATUS_LIVE" == "OFF" && -n "$_DOM_EFF" ]]; then
+    _cf_cache="/tmp/_maxinet_cf_ns"
+    if [[ -f "$_cf_cache" ]] && (( $(date +%s) - $(stat -c %Y "$_cf_cache" 2>/dev/null || echo 0) < 3600 )); then
+        CF_STATUS_LIVE=$(cat "$_cf_cache" 2>/dev/null)
+    else
+        _parent_domain=$(echo "$_DOM_EFF" | awk -F. '{print $(NF-1)"."$NF}')
+        CF_NS=$(timeout 0.8s dig +short +time=1 +tries=1 NS "$_parent_domain" 2>/dev/null | grep -ci cloudflare || echo 0)
+        if [[ "$CF_NS" -gt 0 ]]; then CF_STATUS_LIVE="ON"; else CF_STATUS_LIVE="OFF"; fi
+        echo "$CF_STATUS_LIVE" > "$_cf_cache" 2>/dev/null
+    fi
+fi
+
 NOIP_STATUS_LIVE="OFF"
 if [[ -n "$NOIP_DOMAIN" ]]; then
     NOIP_STATUS_LIVE="ON"
 elif [[ -n "$_DOM_EFF" ]]; then
-    _noip_check=$(dig +short A "$_DOM_EFF" 2>/dev/null | head -1)
-    if [[ -n "$_noip_check" && "$_noip_check" != "$IP" ]]; then
-        NOIP_STATUS_LIVE="ON"
+    _noip_cache="/tmp/_maxinet_noip_check"
+    if [[ -f "$_noip_cache" ]] && (( $(date +%s) - $(stat -c %Y "$_noip_cache" 2>/dev/null || echo 0) < 3600 )); then
+        NOIP_STATUS_LIVE=$(cat "$_noip_cache" 2>/dev/null)
+    else
+        _noip_check=$(timeout 0.8s dig +short +time=1 +tries=1 A "$_DOM_EFF" 2>/dev/null | head -1 || echo "")
+        if [[ -n "$_noip_check" && "$_noip_check" != "$IP" ]]; then
+            NOIP_STATUS_LIVE="ON"
+        fi
+        echo "$NOIP_STATUS_LIVE" > "$_noip_cache" 2>/dev/null
     fi
 fi
 
 #=========================================================
-# Notificación de actualización (caché 6h)
+# Notificación de actualización (asíncrono en background)
 #=========================================================
 
 UPD_CACHE="/tmp/maxinet_upd_check"
 UPD_VER_FILE="/tmp/maxinet_upd_ver"
 UPD_NOW=$(date +%s)
 if [[ ! -f "$UPD_CACHE" ]] || (( UPD_NOW - $(cat "$UPD_CACHE" 2>/dev/null || echo 0) > 21600 )); then
-    UPD_RV=$(curl -fsSL --max-time 4 "https://api.github.com/repos/Eduarpj97/maxinet/contents/version.txt" 2>/dev/null \
-        | grep -o '"content":"[^"]*"' | head -1 | cut -d'"' -f4 | base64 -d 2>/dev/null | tr -d ' \n')
-    [[ -z "$UPD_RV" ]] && UPD_RV=$(curl -fsSL --max-time 4 "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/version.txt" 2>/dev/null | tr -d ' \n')
-    [[ -n "$UPD_RV" ]] && echo "$UPD_RV" > "$UPD_VER_FILE"
     echo "$UPD_NOW" > "$UPD_CACHE"
+    (
+        _upd_rv=$(curl -fsSL --max-time 2 "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/version.txt" 2>/dev/null | tr -d ' \n\r')
+        [[ -n "$_upd_rv" ]] && echo "$_upd_rv" > "$UPD_VER_FILE"
+    ) &>/dev/null &
 fi
 UPD_RV=$(cat "$UPD_VER_FILE" 2>/dev/null)
-UPD_LV=$(tr -d ' \n' < "$BASE/version.txt" 2>/dev/null)
+UPD_LV=$(tr -d ' \n\r' < "$BASE/version.txt" 2>/dev/null)
 
 #=========================================================
 # PANTALLA — DASHBOARD NEBULA v6.0 (centrado dinámico real)

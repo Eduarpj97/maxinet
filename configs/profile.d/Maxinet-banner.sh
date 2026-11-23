@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v3.0.3
+# Maxinet Network - Premium Welcome Banner v3.0.4
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -57,40 +57,30 @@ C_MORADO="\e[38;5;201m"
 C_NARANJA="\e[38;5;208m"
 BOLD="\e[1m"
 
-# ── Utilidades ─────────────────────────────────
+# ── Utilidades (Ultra-rápidas en memoria sin subprocesos) ─────
+shopt -s extglob 2>/dev/null || true
 COLS=$(tput cols 2>/dev/null || echo 80)
+[[ "$COLS" =~ ^[0-9]+$ ]] || COLS=80
 
-# long: ancho visible de un texto (sin ANSI), cuenta emojis como 2 cols
-long() {
-    local s
-    s=$(printf '%b' "$1" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
-    local n
-    n=$(printf '%s' "$s" | LC_ALL=C.UTF-8 wc -m 2>/dev/null)
-    [[ -z "$n" || "$n" -eq 0 ]] && n=${#s}
-    local ne
-    ne=$(printf '%s' "$s" | LC_ALL=C.UTF-8 grep -oP '[\x{1F000}-\x{1FAFF}\x{1F300}-\x{1FAFF}\x{2600}-\x{27BF}\x{2B00}-\x{2BFF}\x{FE0F}]' 2>/dev/null | wc -l)
-    [[ -z "$ne" ]] && ne=0
-    echo $(( n + ne ))
-}
-
-# center: centra texto (soporta códigos ANSI)
+# center: centra texto con padding instantáneo sin subshells
 center() {
     local text="$1"
-    local len
-    len=$(long "$text")
-    local pad=$(( (COLS - len) / 2 ))
+    local s="$text"
+    s="${s//$'\e'\[*([0-9;])m/}"
+    s="${s//$'\e'\[*([0-9;])K/}"
+    s="${s//$'\e'\[*([0-9;])G/}"
+    s="${s//$'\e'\[*([0-9;])[a-zA-Z]/}"
+    local pad=$(( (COLS - ${#s}) / 2 ))
     [[ $pad -lt 0 ]] && pad=0
-    printf '%*s' "$pad" ""
-    printf '%b\n' "$text"
+    printf '%*s%b\n' "$pad" "" "$text"
 }
 
-# hr: línea horizontal adaptada al ancho
+# hr: línea horizontal adaptada al ancho instantánea
 hr() {
     local char="${1:-═}"
-    local line=""
-    local i
-    for ((i=0; i<COLS; i++)); do line+="$char"; done
-    printf '%b\n' "${C_AZUL}${line}${C_RESET}"
+    local line
+    printf -v line '%*s' "$COLS" ""
+    printf '%b\n' "${C_AZUL}${line// /$char}${C_RESET}"
 }
 
 # ── Panel (ancho fijo, alineación perfecta) ─────
@@ -98,53 +88,48 @@ PW=46                      # ancho interior del panel (celdas)
 PL=$(( (COLS - PW - 2) / 2 ))   # padding izquierdo
 [[ $PL -lt 0 ]] && PL=0
 
-# p_linea <contenido (sin bordes)>
+# p_linea <contenido (sin bordes)> sin subshells
 p_linea() {
     local content="$1"
-    local len
-    len=$(long "$content")
-    local fill=$(( PW - len ))
+    local s="$content"
+    s="${s//$'\e'\[*([0-9;])m/}"
+    s="${s//$'\e'\[*([0-9;])K/}"
+    s="${s//$'\e'\[*([0-9;])G/}"
+    s="${s//$'\e'\[*([0-9;])[a-zA-Z]/}"
+    local fill=$(( PW - ${#s} ))
     [[ $fill -lt 0 ]] && fill=0
-    printf '%*s' "$PL" ""
-    printf '%b' "${C_CIAN}${BOLD}│${C_RESET}${content}"
-    printf '%*s' "$fill" ""
-    printf '%b\n' "${C_CIAN}${BOLD}│${C_RESET}"
+    printf '%*s%b%*s%b\n' "$PL" "" "${C_CIAN}${BOLD}│${C_RESET}${content}" "$fill" "" "${C_CIAN}${BOLD}│${C_RESET}"
 }
 
 # p_marco_sup / p_marco_inf
 _repeat() {
-    local char="$1" n="$2" out="" i
-    for ((i=0; i<n; i++)); do out+="$char"; done
-    printf '%s' "$out"
+    local out
+    printf -v out '%*s' "$2" ""
+    printf '%s' "${out// /$1}"
 }
 
 p_marco_sup() {
-    printf '%*s' "$PL" ""
-    printf '%b' "${C_CIAN}${BOLD}┌"
-    printf '%b' "${C_CIAN}$(_repeat '─' "$PW")"
-    printf '%b\n' "${C_CIAN}${BOLD}┐${C_RESET}"
+    local border
+    printf -v border '%*s' "$PW" ""
+    printf '%*s%b%b%b\n' "$PL" "" "${C_CIAN}${BOLD}┌" "${C_CIAN}${border// /─}" "${C_CIAN}${BOLD}┐${C_RESET}"
 }
 
 p_marco_inf() {
-    printf '%*s' "$PL" ""
-    printf '%b' "${C_CIAN}${BOLD}└"
-    printf '%b' "${C_CIAN}$(_repeat '─' "$PW")"
-    printf '%b\n' "${C_CIAN}${BOLD}┘${C_RESET}"
+    local border
+    printf -v border '%*s' "$PW" ""
+    printf '%*s%b%b%b\n' "$PL" "" "${C_CIAN}${BOLD}└" "${C_CIAN}${border// /─}" "${C_CIAN}${BOLD}┘${C_RESET}"
 }
 
 # p_fila <icono(1celda)> <label> <valor>
 p_fila() {
     local icon="$1" label="$2" valor="$3"
-    local txt
-    txt="  ${C_DORADO}${icon}${C_RESET} ${C_CIAN2}${BOLD}${label}${C_RESET}"
-    local len_lbl
-    len_lbl=$(( 2 + 1 + 1 + ${#label} + 1 ))   # espacios + icono + espacio + label + :
+    local txt="  ${C_DORADO}${icon}${C_RESET} ${C_CIAN2}${BOLD}${label}${C_RESET}"
+    local len_lbl=$(( 2 + 1 + 1 + ${#label} + 1 ))   # espacios + icono + espacio + label + espacio
     local len_val=${#valor}
     local dots=$(( PW - len_lbl - len_val ))
     [[ $dots -lt 1 ]] && dots=1
-    local gap=""
-    local i
-    for ((i=0; i<dots; i++)); do gap+=" "; done
+    local gap
+    printf -v gap '%*s' "$dots" ""
     p_linea "${txt}${gap}${C_BLANCO}${BOLD}${valor}${C_RESET}"
 }
 
