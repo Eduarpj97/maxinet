@@ -3,6 +3,7 @@
 # Maxinet Network v2.10
 # Monitor Conectados (En Vivo) · 100% Datos Reales
 # Sin simulación: ss / conntrack / ps / proc / lastlog
+# ZiVPN: lee TODAS las claves de config.json (igual a Abbienet)
 #==================================================
 
 export LC_ALL=C.UTF-8 2>/dev/null
@@ -19,7 +20,6 @@ BASELINE="$DIR_TRAFICO/iface_dia.db"
 
 mkdir -p "$BASE" "$DIR_TRAFICO" 2>/dev/null
 touch "$DB_USERS" 2>/dev/null
-# Nunca dejar rutas inexistentes que rompan redirecciones
 [[ -f "$DB_USERS" ]] || DB_USERS="/dev/null"
 
 # ── Paleta ANSI ──
@@ -214,6 +214,7 @@ _ultima_conexion() {
     printf '%s' "${raw:0:19}"
 }
 
+# Devuelve solo conexiones OK de conexiones.db
 _zivpn_resumen() {
     # salida: auth|conexiones|ultima_marca
     local db="$ZIVPN_CONEX"
@@ -231,6 +232,55 @@ _zivpn_resumen() {
             }
             for (a in c) printf "%s|%d|%s\n", a, c[a], l[a]
         }' "$db" 2>/dev/null | sort -t'|' -k3,3r
+}
+
+# Devuelve TODAS las claves de config.json + su última conexión en conexiones.db
+# salida: auth|conexiones|ultima_marca|estado (online/offline/never)
+_zivpn_full_resumen() {
+    local cfg="$DIR_ZIVPN/config.json"
+    local db="$ZIVPN_CONEX"
+    
+    # Leer claves de config.json
+    local -a CLAVES=()
+    if [[ -f "$cfg" ]] && command -v jq >/dev/null 2>&1; then
+        mapfile -t CLAVES < <(jq -r '.auth.config[]?' "$cfg" 2>/dev/null)
+    fi
+    (( ${#CLAVES[@]} == 0 )) && return 0
+
+    # Construir mapa de última conexión por auth desde conexiones.db
+    declare -A ULT_CONEX ULT_ESTADO
+    if [[ -s "$db" ]]; then
+        while IFS='|' read -r fecha addr auth tx res; do
+            [[ -z "$auth" ]] && continue
+            if [[ -z "${ULT_CONEX[$auth]:-}" || "$fecha" > "${ULT_CONEX[$auth]}" ]]; then
+                ULT_CONEX[$auth]="$fecha"
+                ULT_ESTADO[$auth]="$res"
+            fi
+        done < "$db"
+    fi
+
+    local AHORA TS
+    AHORA=$(date +%s)
+    for auth in "${CLAVES[@]}"; do
+        local ultima="${ULT_CONEX[$auth]:-}"
+        local conexiones=0
+        if [[ -n "$ultima" ]]; then
+            conexiones=$(awk -F'|' -v a="$auth" '$3==a && $5=="ok"{c++} END{print c+0}' "$db" 2>/dev/null)
+            conexiones=$(_num "$conexiones")
+            TS=$(_ts_epoch "$ultima")
+            (( TS > 0 )) && DIF=$(( AHORA - TS )) || DIF=999999
+            if (( DIF <= 60 )); then
+                estado="online"
+            elif (( DIF <= 3600 )); then
+                estado="recent"
+            else
+                estado="offline"
+            fi
+        else
+            estado="never"
+        fi
+        printf '%s|%d|%s|%s\n' "$auth" "$conexiones" "$ultima" "$estado"
+    done
 }
 
 # ─────────────────────────────────────────────────────────────
@@ -343,7 +393,7 @@ mostrar_pantalla_monitor() {
     SSH_REG=$(_num "$SSH_REG")
 
     local ZIV_DATOS
-    ZIV_DATOS=$(_zivpn_resumen)
+    ZIV_DATOS=$(_zivpn_full_resumen)
     ZIVPN_CONN=$(printf '%s\n' "$ZIV_DATOS" | awk -F'|' 'NF>=2{c+=$2} END{print c+0}')
     ZIVPN_CONN=$(_num "$ZIVPN_CONN")
 
@@ -351,12 +401,10 @@ mostrar_pantalla_monitor() {
     AHORA=$(date +%s)
     ZIVPN_ACT=0; ZIVPN_PASS=0
     if [[ -n "$ZIV_DATOS" ]]; then
-        while IFS='|' read -r zauth zcon zts; do
+        while IFS='|' read -r zauth zcon zts estado; do
             [[ -z "$zauth" ]] && continue
             TS=$(_ts_epoch "$zts")
-            (( TS <= 0 )) && continue
-            DIF=$(( AHORA - TS ))
-            if (( DIF <= 60 )); then
+            if [[ "$estado" == "online" ]]; then
                 ZIVPN_PASS=$(( ZIVPN_PASS + 1 ))
                 ZIVPN_ACT=$(( ZIVPN_ACT + $(_num "$zcon") ))
             fi
@@ -461,25 +509,35 @@ mostrar_pantalla_monitor() {
 
     local HAYZ=0 ZE ZF
     if [[ -n "$ZIV_DATOS" ]]; then
-        while IFS='|' read -r zauth zcon zts; do
+        while IFS='|' read -r zauth zcon zts estado; do
             [[ -z "$zauth" ]] && continue
             HAYZ=1
-            ZE=$(_ts_epoch "$zts")
-            if (( ZE <= 0 )); then
-                ZF="${GRY}—${RST}"
-            elif (( AHORA - ZE <= 60 )); then
-                ZF="${GRN}● $(_relativo "$ZE")${RST}"
-            elif (( AHORA - ZE <= 3600 )); then
-                ZF="${YEL}◐ $(_relativo "$ZE")${RST}"
-            else
-                ZF="${RED}○ $(_relativo "$ZE")${RST}"
-            fi
+            case "$estado" in
+                online)
+                    ZE=$(_ts_epoch "$zts")
+                    ZF="${GRN}● $(_relativo "$ZE")${RST}"
+                    ;;
+                recent)
+                    ZE=$(_ts_epoch "$zts")
+                    ZF="${YEL}◐ $(_relativo "$ZE")${RST}"
+                    ;;
+                offline)
+                    ZE=$(_ts_epoch "$zts")
+                    ZF="${RED}○ $(_relativo "$ZE")${RST}"
+                    ;;
+                never)
+                    ZF="${GRY}—${RST}"
+                    ;;
+                *)
+                    ZF="${GRY}?${RST}"
+                    ;;
+            esac
             printf '%b\n' "   ${GRY}│${RST} ${GOL}$(_celda "$zauth" $Z1)${RST} ${GRY}│${RST} ${WHT}$(_celda "$zcon" $Z2)${RST} ${GRY}│${RST} ${WHT}$(_celda "$zts" $Z3)${RST} ${GRY}│${RST} ${ZF} ${GRY}│${RST}"
         done <<< "$ZIV_DATOS"
     fi
 
     if (( HAYZ == 0 )); then
-        printf '%b\n' "   ${GRY}│${RST} ${GRY}(sin registros en ${ZIVPN_CONEX})${RST}"
+        printf '%b\n' "   ${GRY}│${RST} ${GRY}(sin claves en config.json)${RST}"
     fi
     printf '%b\n' "   ${GRY}└$(_rep '─' $Z1)┴$(_rep '─' $Z2)┴$(_rep '─' $Z3)┴$(_rep '─' $Z4)┘${RST}"
     printf '%b\n' " ${ZIVPN_PASS} contraseña(s) en línea · ${ZIVPN_ACT} usuario(s) conectado(s) · ${GRN}●${RST} = activa ≤60 s · ${YEL}◐${RST} = ≤1 h · ${RED}○${RST} = inactiva"
