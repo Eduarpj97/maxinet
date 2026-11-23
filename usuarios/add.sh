@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.7
+# Maxinet Network Premium v2.8
 # Asistente Interactivo de Creación de Usuario SSH
 # Integración nativa con tarjeta en vivo (70 cols)
 #==================================================

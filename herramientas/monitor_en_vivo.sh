@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network v2.7
+# Maxinet Network v2.8
 # Monitor Conectados (En Vivo) · 100% Datos Reales
 # Basado en Abbienet Monitor v7.2.3
 # Monitoreo pasivo (nf_conntrack / sockets / journal / ss / ps)
@@ -251,7 +251,7 @@ mostrar_pantalla_monitor() {
     echo -e " ${BLD}${GRN}     █▀█ █▀▄ █▀▄ ░█░ ██▄   █░▀█ ██▄ ░█░                               ${RST}"
     echo -e "                                                                       ${RST}"
     echo -e " ${BLD}${GRN}        ⟐  M O N I T O R   D E   C O N E X I O N E S  ⟐               ${RST}"
-    echo -e " ${BLD}${GRN}                  v2.7 · Panel en Vivo                             ${RST}"
+    echo -e " ${BLD}${GRN}                  v2.8 · Panel en Vivo                             ${RST}"
     echo -e "${CYN}╚════════════════════════════════════════════════════════════════════════════════════════════════╝${RST}"
     echo ""
     echo -e "${CYN}┌──────────────────────────────────────────────────────────────────────────────────────────────┐${RST}"

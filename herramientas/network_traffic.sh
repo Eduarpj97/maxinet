@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.7
+# Maxinet Network Premium v2.8
 # Tráfico & Consumo (GB) · Contabilidad Real iptables
 # Rastreo real con iptables (IP + UID), límites de GB,
 # auto-bloqueo estricto y gráficas ASCII
