@@ -259,7 +259,7 @@ maxinet_contacts() {
     echo -e " ${GRAY}🌐${RESET} ${WHITE}maxinet-network.web.app${RESET} ${GRAY}·${RESET} ${CYAN}📱${RESET} ${WHITE}+57 311 700 8185${RESET}"
 }
 
-# ── Header estándar para SUBMENÚS — PREMIUM v2.10 (logo 3D + marco) ──
+# ── Header estándar para SUBMENÚS — PREMIUM v2.11 (logo 3D + marco) ──
 # Con lib/ui.sh cargado usa el mismo marco premium del menú principal
 maxinet_sub_header() {
     local TITLE="$1"
@@ -311,7 +311,7 @@ nav_pick() {
     local CYAN="\033[1;96m" GOLD="\033[1;93m" GRAY="\033[1;90m" R="\033[0m"
 
 # ============================================================
-# >>> NEBULA v2.10 <<< Identidad visual heredada del design system
+# >>> NEBULA v2.11 <<< Identidad visual heredada del design system
 # Redefine los colores locales con la paleta NEBULA (lib/ui.sh)
 # Fallback seguro: si ui.sh no carga, se conserva el color local.
 # ============================================================

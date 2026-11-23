@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.10
+# Maxinet Network Premium v2.11
 # ZiVPN UDP Manager [ Suite Completa 17 Funciones ]
 # Portado y adaptado desde motor oficial v7
 #==================================================
@@ -144,7 +144,7 @@ _titulo_seccion() {
 
 _zv_cabecera() {
     _titulo_seccion "$1"
-    _borde_caja top "◈ MAXINET · $2 v2.10 ◈" "$ZV_B"
+    _borde_caja top "◈ MAXINET · $2 v2.11 ◈" "$ZV_B"
 }
 
 _zv_grupo() {
@@ -251,7 +251,7 @@ reinstalar_zivpn() {
     if [ "$SILENT" = false ]; then
         clear
         _titulo_seccion "⬇️ INSTALACIÓN · ZIVPN UDP OFICIAL"
-        _borde_caja top "◈ MAXINET · INSTALAR v2.10 ◈" "$ZV_B"
+        _borde_caja top "◈ MAXINET · INSTALAR v2.11 ◈" "$ZV_B"
         _zv_dato "📦" "Paquetes" "${C_DIM}jq · openssl · iptables${C_RESET}"
         _zv_dato "🔐" "Auth"     "${C_DIM}command (bitácora IP↔clave)${C_RESET}"
         _zv_dato "🚀" "Servicio" "${C_DIM}zivpn.service · Nice -20${C_RESET}"
@@ -338,7 +338,7 @@ ZEOF
 
     cat > /etc/systemd/system/zivpn.service << EOF
 [Unit]
-Description=ZiVPN UDP Server [ Maxinet v2.10 ]
+Description=ZiVPN UDP Server [ Maxinet v2.11 ]
 After=network.target network-online.target
 Wants=network-online.target
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network v2.10
+# Maxinet Network v2.11
 # Monitor Conectados (En Vivo) · 100% Datos Reales
 # Sin simulación: ss / conntrack / ps / proc / lastlog
 # ZiVPN: lee TODAS las claves de config.json (igual a Abbienet)
@@ -399,7 +399,7 @@ mostrar_pantalla_monitor() {
 
     local AHORA TS DIF
     AHORA=$(date +%s)
-    ZIVPN_ACT=0; ZIVPN_PASS=0
+    ZIVPN_ACT=0; ZIVPN_PASS=0; ZIVPN_OFF=0
     if [[ -n "$ZIV_DATOS" ]]; then
         while IFS='|' read -r zauth zcon zts estado; do
             [[ -z "$zauth" ]] && continue
@@ -407,6 +407,8 @@ mostrar_pantalla_monitor() {
             if [[ "$estado" == "online" ]]; then
                 ZIVPN_PASS=$(( ZIVPN_PASS + 1 ))
                 ZIVPN_ACT=$(( ZIVPN_ACT + $(_num "$zcon") ))
+            elif [[ "$estado" == "offline" || "$estado" == "never" ]]; then
+                ZIVPN_OFF=$(( ZIVPN_OFF + 1 ))
             fi
         done <<< "$ZIV_DATOS"
     fi
@@ -423,7 +425,7 @@ mostrar_pantalla_monitor() {
     printf '%b\n' "${CYN}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ${RST}"
     printf '%b\n' "${CYN}╚$(_rep '═' 72)╝${RST}"
     printf '%b\n' " ${BLD}${GRN}      ⟐  M O N I T O R   D E   C O N E X I O N E S  ⟐${RST}"
-    printf '%b\n' " ${BLD}${GOL}                    v2.10 · Panel en Vivo${RST}"
+    printf '%b\n' " ${BLD}${GOL}                    v2.11 · Panel en Vivo${RST}"
     echo ""
 
     # ═══════════════ BARRA EN VIVO ═══════════════
@@ -540,7 +542,7 @@ mostrar_pantalla_monitor() {
         printf '%b\n' "   ${GRY}│${RST} ${GRY}(sin claves en config.json)${RST}"
     fi
     printf '%b\n' "   ${GRY}└$(_rep '─' $Z1)┴$(_rep '─' $Z2)┴$(_rep '─' $Z3)┴$(_rep '─' $Z4)┘${RST}"
-    printf '%b\n' " ${ZIVPN_PASS} contraseña(s) en línea · ${ZIVPN_ACT} usuario(s) conectado(s) · ${GRN}●${RST} = activa ≤60 s · ${YEL}◐${RST} = ≤1 h · ${RED}○${RST} = inactiva"
+    printf '%b\n' " ${ZIVPN_PASS} contraseña(s) en línea · ${ZIVPN_ACT} usuario(s) conectado(s) · ${ZIVPN_OFF} apagada(s) · ${GRN}●${RST} = activa ≤60 s · ${YEL}◐${RST} = ≤1 h · ${RED}○${RST} = inactiva"
     echo ""
 
     # ═══════════════ TRÁFICO ═══════════════
