@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.9
+# Maxinet Network Premium v2.10
 # Cloudflare WARP Smart Exit (Salida Selectiva)
 # Salida rápida para dominios de streaming / redes
 #==================================================
@@ -65,7 +65,7 @@ menu_warp() {
         [[ "$ST" == "ACTIVO" ]] && ST_COLOR="${C_B_VERDE}🟢 ACTIVO${C_RESET}"
 
         echo -e "${C_B_AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
-        echo -e "       ${C_B_BLANCO}CLOUDFLARE WARP SMART EXIT${C_RESET} ${C_B_CIAN}v2.9${C_RESET}"
+        echo -e "       ${C_B_BLANCO}CLOUDFLARE WARP SMART EXIT${C_RESET} ${C_B_CIAN}v2.10${C_RESET}"
         echo -e "${C_B_AZUL}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${C_RESET}"
         echo -e "  Estado del túnel: $ST_COLOR"
         echo -e "  Enrutamiento selectivo para streaming y redes sociales"
