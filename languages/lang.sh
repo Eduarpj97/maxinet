@@ -1,6 +1,6 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-#   MAXINET NETWORK — LANGUAGE LOADER v2.11
+#   MAXINET NETWORK — LANGUAGE LOADER v2.12
 #   Carga el idioma seleccionado y ofrece selector global
 # ═══════════════════════════════════════════════════════════════
 

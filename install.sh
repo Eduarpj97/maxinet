@@ -2745,12 +2745,63 @@ ZEOF
     "key": "/etc/zivpn/zivpn.key",
     "max_conn": 0,
     "auth": {
-        "mode": "passwords",
+        "mode": "command",
+        "command": "/etc/zivpn/auth.sh",
         "config": ["1"]
     }
 }
 ZEOF
     fi
+
+    # Crear auth.sh para registro de conexiones en conexiones.db (estilo Abbienet)
+    cat > /etc/zivpn/auth.sh << 'AUTHEOF'
+#!/bin/bash
+ADDR="${1:-}"
+AUTH="${2:-}"
+TX="${3:-0}"
+DIR="/etc/zivpn"
+CFG="$DIR/config.json"
+CAD="$DIR/caducidad.db"
+CONEX_DB="$DIR/conexiones.db"
+AUTH_TEST="${MAXINET_AUTH_TEST:-0}"
+
+[ -z "$AUTH" ] && exit 1
+
+OK=0
+if [ -f "$CFG" ] && command -v jq >/dev/null 2>&1; then
+    if jq -e --arg p "$AUTH" '(.auth.config // .passwords // .config // []) | index($p) != null' "$CFG" >/dev/null 2>&1; then
+        OK=1
+    fi
+fi
+
+if [ "$OK" = 1 ] && [ -f "$CAD" ]; then
+    EXP=$(awk -F: -v k="$AUTH" '$1 == k { print $2; exit }' "$CAD" 2>/dev/null)
+    if [ -n "$EXP" ] && [ "$EXP" != "Ilimitado" ]; then
+        HOY=$(date +%Y-%m-%d 2>/dev/null)
+        if [ -n "$HOY" ] && [ "$HOY" > "$EXP" ]; then OK=0; fi
+    fi
+fi
+
+FECHA=$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z')
+if [ "$OK" = 1 ]; then RES="ok"; else RES="rechazado"; fi
+
+if [ "$AUTH_TEST" != "1" ]; then
+    printf '%s|%s|%s|%s|%s\n' "$FECHA" "$ADDR" "$AUTH" "$TX" "$RES" >> "$CONEX_DB" 2>/dev/null
+    chmod 600 "$CONEX_DB" 2>/dev/null
+    LINES=$(wc -l < "$CONEX_DB" 2>/dev/null || echo 0)
+    if [ "$LINES" -gt 20000 ]; then
+        tail -n 10000 "$CONEX_DB" > "$CONEX_DB.pod" 2>/dev/null && mv -f "$CONEX_DB.pod" "$CONEX_DB" 2>/dev/null
+    fi
+fi
+
+if [ "$OK" = 1 ]; then
+    printf '%s\n' "$AUTH"
+    exit 0
+fi
+exit 1
+AUTHEOF
+
+    chmod 700 /etc/zivpn/auth.sh
 
     cat > /etc/systemd/system/zivpn.service <<ZEOF2
 [Unit]
@@ -3607,7 +3658,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.11
+# Maxinet Network - Premium Welcome Banner v2.12
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -3844,7 +3895,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.11  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.12  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>
@@ -3873,7 +3924,7 @@ run_cmd "Reiniciando SSH y Dropbear" "$LINENO" "systemctl restart ssh 2>/dev/nul
 
 
 # ════════════════════════════════════════════════════════════════════
-# MÓDULOS FUNCIONALES COMPLETOS (v2.11)
+# MÓDULOS FUNCIONALES COMPLETOS (v2.12)
 # ════════════════════════════════════════════════════════════════════
 step "Configurando módulos funcionales completos (Monitor, Optimizador, Tráfico)..."
 
@@ -3920,7 +3971,7 @@ TROF
 # 5. Configurar sysctl persistente para Optimizador de Red (Carrier Grade)
 run_cmd "Configurando sysctl persistente Optimizador Red (Carrier Grade)" "$LINENO" "
     cat > /etc/sysctl.d/99-maxinet-optimizer.conf << 'SYSCTL_EOF'
-# Maxinet Network v2.11 - Optimizador Carrier Grade
+# Maxinet Network v2.12 - Optimizador Carrier Grade
 # TCP BBR v3 + FQ Pacing
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr

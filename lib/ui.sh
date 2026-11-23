@@ -20,7 +20,7 @@
 #      (5 variantes: identidad propia, no msg-bar de Chumo)
 #
 # Uso:  source "$BASE/lib/ui.sh"
-#   mv_header "TITULO" "Subtitulo" "v2.11"
+#   mv_header "TITULO" "Subtitulo" "v2.12"
 #   mv_section "💻 SISTEMA"
 #   mv_kv "IP" "$IP"
 #   mv_pill "ON" "Cloudflare"
@@ -314,7 +314,7 @@ mv_signature(){
 
 # ── Header principal: ═══ + ◆ título ◆ + ═══ (estilo banner) ──
 mv_header(){
-    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.11}"
+    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.12}"
     mv_line
     mv_center "${MV_GLD}◆${MV_R}  ${MV_BLD}${MV_WHT}${TITLE}${MV_R}  ${MV_DIM}[${MV_R}${MV_CYN}${VER}${MV_R}${MV_DIM}]${MV_R}  ${MV_GLD}◆${MV_R}"
     [[ -n "$SUB" ]] && mv_center "${MV_YLW}${SUB}${MV_R}"
