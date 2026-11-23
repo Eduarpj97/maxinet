@@ -13,6 +13,13 @@ COMMIT_HASH_FILE="$BASE/.last_commit_hash"
 RAW_VER="https://raw.githubusercontent.com/Eduarpj97/maxinet/main/version.txt"
 REPO_TARBALL="https://github.com/Eduarpj97/maxinet/archive/refs/heads/main.tar.gz"
 
+FORCE_UPDATE=0
+for arg in "$@"; do
+    case "$arg" in
+        --force|-f) FORCE_UPDATE=1 ;;
+    esac
+done
+
 # Cargar idiomas
 if [[ -f "$BASE/languages/lang.sh" ]]; then
     source "$BASE/languages/lang.sh"
@@ -35,7 +42,7 @@ TEMP_DIR="/tmp/maxinet-update-$$"
 
 clear
 TOP
-printf "${CYAN}║${RESET}  ${GOLD}🛡️  Maxinet Network${RESET}  ${WHITE}ACTUALIZADOR v${VERSION:-$(cat "$BASE/version.txt" 2>/dev/null || echo "3.0.0")}${RESET}${CYAN}           ║${RESET}\n"
+printf "${CYAN}║${RESET}  ${GOLD}🛡️  Maxinet Network${RESET}  ${WHITE}ACTUALIZADOR v${VERSION:-$(cat "$BASE/version.txt" 2>/dev/null || echo "3.0.1")}${RESET}${CYAN}           ║${RESET}\n"
 printf "${CYAN}║${RESET}  ${GRAY}maxinet-network.web.app${RESET}  ${GRAY}·${RESET}  ${WHITE}Actualizador${RESET}${CYAN}                    ║${RESET}\n"
 MID
 echo ""
@@ -72,11 +79,21 @@ if [[ -z "$REMOTE_VER" ]]; then
 fi
 
 if [[ "$LOCAL_VER" == "$REMOTE_VER" ]]; then
-    ROWC "${GREEN}✓ v${LOCAL_VER} — Ya estás actualizado${RESET}"
-    BOT
-    echo ""
-    read -rp "$(echo -e "${CYAN}   Enter para volver${RESET}")" _
-    exec bash "$BASE/menu.sh"
+    if [[ "$FORCE_UPDATE" -eq 1 ]]; then
+        ROWC "${GOLD}⚡ Modo forzado: v${LOCAL_VER} (reinstalando)${RESET}"
+    else
+        ROWC "${GREEN}✓ v${LOCAL_VER} — Misma versión en servidor${RESET}"
+        MID
+        echo ""
+        read -rp "$(echo -e "${CYAN}   ¿Deseas forzar la reinstalación con los últimos cambios de GitHub? [s/N]: ${RESET}")" FORZAR
+        if [[ ! "$FORZAR" =~ ^[sS]$ ]]; then
+            BOT
+            echo ""
+            read -rp "$(echo -e "${CYAN}   Enter para volver${RESET}")" _
+            exec bash "$BASE/menu.sh"
+        fi
+        ROWC "${GOLD}⚡ Forzando actualización con GitHub...${RESET}"
+    fi
 fi
 
 ROWC "${WHITE}Local: ${GOLD}v${LOCAL_VER}${RESET}  →  Remota: ${GREEN}v${REMOTE_VER}${RESET}"
