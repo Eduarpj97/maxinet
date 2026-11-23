@@ -1,8 +1,8 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.13
+# Maxinet Network Premium v3.0
 # ZiVPN UDP Manager [ Suite Completa 17 Funciones ]
-# Portado y adaptado desde motor oficial v7
+# Portado y adaptado con motor de conexiones reales
 #==================================================
 
 BASE="/etc/maxinet"
@@ -144,7 +144,7 @@ _titulo_seccion() {
 
 _zv_cabecera() {
     _titulo_seccion "$1"
-    _borde_caja top "◈ MAXINET · $2 v2.13 ◈" "$ZV_B"
+    _borde_caja top "◈ MAXINET · $2 v3.0 ◈" "$ZV_B"
 }
 
 _zv_grupo() {
@@ -197,24 +197,48 @@ crear_auth_zivpn() {
     mkdir -p "$DIR_ZIVPN" 2>/dev/null
     cat > "$DIR_ZIVPN/auth.sh" << 'AUTHEOF'
 #!/bin/bash
+# Maxinet - ZiVPN auth por comando (registro real de conexiones)
 ADDR="${1:-}"
 AUTH="${2:-}"
 TX="${3:-0}"
-DIR="/etc/zivpn"
-CFG="$DIR/config.json"
-CAD="$DIR/caducidad.db"
-CONEX_DB="$DIR/conexiones.db"
-AUTH_TEST="${MAXINET_AUTH_TEST:-0}"
 
-[ -z "$AUTH" ] && exit 1
+CONEX_DB="${MAXINET_ZIVPN_CONEX_DB:-${ABBIENET_ZIVPN_CONEX_DB:-/etc/zivpn/conexiones.db}}"
+CFG="${MAXINET_ZIVPN_CONFIG:-${ABBIENET_ZIVPN_CONFIG:-/etc/zivpn/config.json}}"
+CAD="${MAXINET_ZIVPN_CADUCIDAD:-${ABBIENET_ZIVPN_CADUCIDAD:-/etc/zivpn/caducidad.db}}"
+AUTH_TEST="${MAXINET_AUTH_TEST:-${ABBIENET_AUTH_TEST:-0}}"
 
-OK=0
-if [ -f "$CFG" ] && command -v jq >/dev/null 2>&1; then
-    if jq -e --arg p "$AUTH" '(.auth.config // .passwords // .config // []) | index($p) != null' "$CFG" >/dev/null 2>&1; then
-        OK=1
+OK=1
+[ -n "$AUTH" ] || OK=0
+
+# 1) La contraseña debe existir en la lista real .auth.config
+_auth_en_config() {
+    if command -v jq >/dev/null 2>&1 && [ -f "$CFG" ]; then
+        jq -e --arg a "$AUTH" '.auth.config[]? | select(. == $a)' "$CFG" >/dev/null 2>&1
+    elif [ -f "$CFG" ]; then
+        local arr
+        arr=$(sed -n 's/.*"config"[ \t]*:[ \t]*\(\[[^]]*\]\).*/\1/p' "$CFG" | head -1)
+        [ -n "$arr" ] || return 1
+        printf '%s\n' "$arr" | awk -v a="$AUTH" '{
+            s = $0
+            sub(/^\[/, "", s); sub(/\]$/, "", s)
+            n = split(s, parts, ",")
+            for (i = 1; i <= n; i++) {
+                p = parts[i]
+                gsub(/^[ \t"]+|[ \t"]+$/, "", p)
+                if (p == a) found = 1
+            }
+            exit found ? 0 : 1
+        }'
+    else
+        return 1
     fi
+}
+
+if [ "$OK" = 1 ]; then
+    _auth_en_config "$AUTH" || OK=0
 fi
 
+# 2) Caducidad real (caducidad.db: clave:fecha)
 if [ "$OK" = 1 ] && [ -f "$CAD" ]; then
     EXP=$(awk -F':' -v k="$AUTH" '$1 == k { print $2; exit }' "$CAD" 2>/dev/null)
     if [ -n "$EXP" ] && [ "$EXP" != "Ilimitado" ]; then
@@ -226,6 +250,7 @@ fi
 FECHA=$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z')
 if [ "$OK" = 1 ]; then RES="ok"; else RES="rechazado"; fi
 
+# 3) Registrar intento real (omitido en autotest)
 if [ "$AUTH_TEST" != "1" ]; then
     printf '%s|%s|%s|%s|%s\n' "$FECHA" "$ADDR" "$AUTH" "$TX" "$RES" >> "$CONEX_DB" 2>/dev/null
     chmod 600 "$CONEX_DB" 2>/dev/null
@@ -251,7 +276,7 @@ reinstalar_zivpn() {
     if [ "$SILENT" = false ]; then
         clear
         _titulo_seccion "⬇️ INSTALACIÓN · ZIVPN UDP OFICIAL"
-        _borde_caja top "◈ MAXINET · INSTALAR v2.13 ◈" "$ZV_B"
+        _borde_caja top "◈ MAXINET · INSTALAR v3.0 ◈" "$ZV_B"
         _zv_dato "📦" "Paquetes" "${C_DIM}jq · openssl · iptables${C_RESET}"
         _zv_dato "🔐" "Auth"     "${C_DIM}command (bitácora IP↔clave)${C_RESET}"
         _zv_dato "🚀" "Servicio" "${C_DIM}zivpn.service · Nice -20${C_RESET}"
@@ -338,7 +363,7 @@ ZEOF
 
     cat > /etc/systemd/system/zivpn.service << EOF
 [Unit]
-Description=ZiVPN UDP Server [ Maxinet v2.13 ]
+Description=ZiVPN UDP Server [ Maxinet v3.0 ]
 After=network.target network-online.target
 Wants=network-online.target
 
@@ -683,27 +708,34 @@ consumo_bloqueos_zivpn() {
 
 ver_conectados_zivpn() {
     clear
+    [[ -f "$BASE/herramientas/conexiones.sh" ]] && source "$BASE/herramientas/conexiones.sh" 2>/dev/null || source "${BASE_DIR:-/etc/maxinet}/herramientas/conexiones.sh" 2>/dev/null
     _zv_cabecera "👥 CLIENTES ZIVPN CONECTADOS" "CONEXIONES"
     local PUERTO=$(jq -r '.listen' "$CONFIG_JSON" 2>/dev/null | tr -d ':')
     [[ -z "$PUERTO" || "$PUERTO" == "null" ]] && PUERTO="5667"
 
-    _zv_dato "🌐" "Puerto UDP" "${C_B_AMARILLO}${PUERTO}${C_RESET}"
-    _zv_grupo "CONEXIONES ACTIVAS"
+    _zv_dato "🌐" "Puerto UDP" "${C_B_AMARILLO}${PUERTO}${C_RESET} ${C_DIM}· flujos reales en kernel${C_RESET}"
+    _zv_grupo "CONEXIONES ACTIVAS (KERNEL & BITÁCORA)"
 
-    local SOCKS=$(ss -u -a 2>/dev/null | grep ":$PUERTO ")
-    local LINEAS=0
-    if [[ -s "$CONEX_DB" ]]; then
-        while IFS='|' read -r fecha ip pass tx res; do
-            [[ "$res" != "ok" ]] && continue
-            imprimir_linea_caja "  ${C_B_VERDE}●${C_RESET} ${ip} 🔑 ${C_B_AMARILLO}${pass}${C_RESET} (${fecha})" "$ZV_B"
-            LINEAS=$(( LINEAS + 1 ))
-        done < <(tail -n 15 "$CONEX_DB")
-    fi
+    declare -F maxinet_ct_precachear >/dev/null 2>&1 && maxinet_ct_precachear
+    local sesiones agrupadas
+    sesiones=$(zivpn_sesiones_reales 6 "$PUERTO" 2>/dev/null)
+    agrupadas=$(printf '%s\n' "$sesiones" | zivpn_agrupar 2>/dev/null)
 
-    if [[ $LINEAS -eq 0 ]]; then
-        _zv_aviso "${C_DIM}(sin sesiones recientes registradas en bitácora)${C_RESET}"
+    if [[ -n "$agrupadas" ]]; then
+        printf '%s\n' "$agrupadas" | zivpn_pintar_tabla 2 "kernel"
+    else
+        _zv_aviso "${C_DIM}(sin clientes ZiVPN activos en este momento)${C_RESET}"
     fi
-    _zv_pie
+    echo ""
+    _zv_aviso "${C_DIM}[K] Purgar flujos huérfanos en conntrack  ·  [Enter] Volver${C_RESET}"
+    _borde_caja bottom "" "$ZV_B"
+    echo ""
+    read -rp " Acción: " act_z
+    if [[ "$act_z" =~ ^[Kk]$ ]]; then
+        purgar_flujos_zivpn_muertos "$PUERTO" 2>/dev/null
+        msg_ok "Flujos huérfanos purgados del kernel con conntrack -D."
+        sleep 1.5
+    fi
 }
 
 turbo_latencia_udp() {
@@ -803,6 +835,71 @@ diagnostico_zivpn() {
         echo -e "${C_B_ROJO}NO DETECTADO EN ESCUCHA 🔴${C_RESET}"
     fi
 
+    echo -ne " [6] Regla IPTables Prioritaria: "
+    if iptables -t nat -S PREROUTING 2>/dev/null | grep -q -- "-p udp.*--dport $PUERTO -j ACCEPT" || iptables -t nat -L PREROUTING -n 2>/dev/null | grep -E "ACCEPT.*dpt:$PUERTO" -q; then
+        echo -e "${C_B_VERDE}PROTEGIDO Y ABIERTO 🟢${C_RESET}"
+    else
+        configurar_firewall_zivpn "$PUERTO"
+        echo -e "${C_B_VERDE}REPARADO: ACCEPT APLICADO 🟢${C_RESET}"
+    fi
+
+    echo -ne " [7] Reenvío IP de Kernel (ip_forward): "
+    if [[ $(sysctl -n net.ipv4.ip_forward 2>/dev/null) -eq 1 ]]; then
+        echo -e "${C_B_VERDE}HABILITADO (1) 🟢${C_RESET}"
+    else
+        sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+        echo -e "${C_B_VERDE}ACTIVADO 🟢${C_RESET}"
+    fi
+
+    echo -ne " [8] Modo de autenticación: "
+    local AUTH_MODE_NOW="passwords"
+    [[ -f "$CONFIG_JSON" ]] && AUTH_MODE_NOW=$(jq -r '.auth.mode // "passwords"' "$CONFIG_JSON" 2>/dev/null)
+    if [[ "$AUTH_MODE_NOW" == "command" ]]; then
+        echo -e "${C_B_VERDE}COMMAND (registra IP+contraseña en bitácora) 🟢${C_RESET}"
+    else
+        echo -e "${C_B_AMARILLO}PASSWORDS (sin bitácora IP↔contraseña) 🟡${C_RESET}"
+    fi
+
+    echo -ne " [9] auth.sh (autenticador en tiempo real): "
+    if [[ -x "$DIR_ZIVPN/auth.sh" ]]; then
+        local PRIMERA_CLAVE
+        PRIMERA_CLAVE=$(jq -r '.auth.config[0] // empty' "$CONFIG_JSON" 2>/dev/null)
+        if [[ -z "$PRIMERA_CLAVE" ]]; then
+            echo -e "${C_B_AMARILLO}PRESENTE (sin claves para autotest) 🟡${C_RESET}"
+        else
+            local T_OK=0 T_BAD=0
+            MAXINET_AUTH_TEST=1 "$DIR_ZIVPN/auth.sh" "127.0.0.1:54321" "$PRIMERA_CLAVE" "0" >/dev/null 2>&1 && T_OK=1
+            MAXINET_AUTH_TEST=1 "$DIR_ZIVPN/auth.sh" "127.0.0.1:54321" "clave_inventada_$$" "0" >/dev/null 2>&1 || T_BAD=1
+            if [[ "$T_OK" == "1" && "$T_BAD" == "1" ]]; then
+                echo -e "${C_B_VERDE}PRESENTE · autotest OK (acepta real, rechaza falsa) 🟢${C_RESET}"
+            elif [[ "$T_OK" == "1" ]]; then
+                echo -e "${C_B_ROJO}FALLA: acepta claves falsas 🔴${C_RESET}"
+            else
+                echo -e "${C_B_ROJO}FALLA: rechaza clave real 🔴${C_RESET}"
+            fi
+        fi
+    else
+        echo -e "${C_B_AMARILLO}NO INSTALADO (modo passwords estándar) 🟡${C_RESET}"
+    fi
+
+    echo -ne " [10] Bitácora conexiones.db: "
+    if [[ -s "$DIR_ZIVPN/conexiones.db" ]]; then
+        local DB_N DB_ULT
+        DB_N=$(wc -l < "$DIR_ZIVPN/conexiones.db" 2>/dev/null | tr -d ' ')
+        DB_ULT=$(tail -1 "$DIR_ZIVPN/conexiones.db" 2>/dev/null | cut -d'|' -f1,2,3,5)
+        echo -e "${C_B_VERDE}${DB_N} registro(s) 🟢 — último: ${DB_ULT}${C_RESET}"
+    else
+        echo -e "${C_B_AMARILLO}vacía (aún sin sesiones registradas) 🟡${C_RESET}"
+    fi
+
+    echo ""
+    _titulo_seccion "🔑 CONTRASEÑAS ACTIVAS"
+    jq -r '.auth.config[]' "$CONFIG_JSON" 2>/dev/null | while read -r l; do
+        echo -e "   🔑 ${C_B_VERDE}$(truncar_texto "$l" 58)${C_RESET}"
+    done
+    echo ""
+    _titulo_seccion "📜 ÚLTIMAS LÍNEAS DEL LOG"
+    journalctl -u zivpn.service -n 10 --no-pager 2>/dev/null
     echo ""
     read -rp " Presione [Enter] para continuar..." _
 }

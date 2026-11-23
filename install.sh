@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "2.5.0")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.0.0")}"
             shift
             ;;
         --limpiar-solo)
@@ -3658,7 +3658,7 @@ step "Configurando banner SSH..."
 cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v2.13
+# Maxinet Network - Premium Welcome Banner v3.0
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -3895,7 +3895,7 @@ cat > /etc/issue.net << IEOF
 <body style='margin:0;padding:0;background:transparent'>
 <div style='text-align:center'><span style="font-family:'Comic Sans MS',cursive,sans-serif;font-weight:bold;">
 <br><br>
-<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v2.13  🛡 🛡️</big></big></font><br>
+<font color='#FF0000'><big><big>🛡️ 🛡  MAXINET NETWORK v3.0  🛡 🛡️</big></big></font><br>
 <font color='#ffffff'><big> ▶ SERVER GRATUITO ◀ ¡Si lo compraste, te estafaron!</big></font><br><br>
 <font color='#29b6f6'>════════════════════════════</font><br><br>
 <font color='#ffffff'><big>🛡 ⚔️ ULTRA PERFORMANCE & MAXIMUM SPEED ⚔️ 🛡</big></font><br><br>
@@ -3924,7 +3924,7 @@ run_cmd "Reiniciando SSH y Dropbear" "$LINENO" "systemctl restart ssh 2>/dev/nul
 
 
 # ════════════════════════════════════════════════════════════════════
-# MÓDULOS FUNCIONALES COMPLETOS (v2.13)
+# MÓDULOS FUNCIONALES COMPLETOS (v3.0)
 # ════════════════════════════════════════════════════════════════════
 step "Configurando módulos funcionales completos (Monitor, Optimizador, Tráfico)..."
 
@@ -3971,7 +3971,7 @@ TROF
 # 5. Configurar sysctl persistente para Optimizador de Red (Carrier Grade)
 run_cmd "Configurando sysctl persistente Optimizador Red (Carrier Grade)" "$LINENO" "
     cat > /etc/sysctl.d/99-maxinet-optimizer.conf << 'SYSCTL_EOF'
-# Maxinet Network v2.13 - Optimizador Carrier Grade
+# Maxinet Network v3.0 - Optimizador Carrier Grade
 # TCP BBR v3 + FQ Pacing
 net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr

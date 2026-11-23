@@ -1,9 +1,9 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.13
+# Maxinet Network Premium v3.0
 # Tráfico & Consumo (GB) · Contabilidad Real iptables
 # Rastreo real con iptables (IP + UID), límites de GB,
-# auto-bloqueo estricto y gráficas ASCII
+# auto-bloqueo estricto, caché UDP y gráficas ASCII
 #==================================================
 
 export LC_ALL=C.UTF-8 2>/dev/null
@@ -17,6 +17,8 @@ DIR_TRAFICO="$BASE/trafico"
 CONSUMO_DB="$DIR_TRAFICO/consumo.db"
 LIMITES_DB="$DIR_TRAFICO/limites_gb.db"
 BLOQUEADOS_DB="$DIR_TRAFICO/bloqueados.db"
+IP_MAP_DB="$DIR_TRAFICO/ip_map.db"
+UDP_ULTIMA_DB="$DIR_TRAFICO/udp_ultima.db"
 HISTORIAL_DIR="$DIR_TRAFICO/historial"
 SNAP_DIR="$DIR_TRAFICO/snapshots"
 DB_USERS="$BASE/usuarios.db"
@@ -41,7 +43,103 @@ msg_warn() { echo -e " ${C_B_AMARILLO}⚠${C_RESET} $1"; }
 
 trafico_init() {
     mkdir -p "$DIR_TRAFICO" "$HISTORIAL_DIR" "$SNAP_DIR" "$BASE/scripts" 2>/dev/null
-    touch "$CONSUMO_DB" "$LIMITES_DB" "$BLOQUEADOS_DB" "$DB_USERS" 2>/dev/null
+    touch "$CONSUMO_DB" "$LIMITES_DB" "$BLOQUEADOS_DB" "$IP_MAP_DB" "$UDP_ULTIMA_DB" "$DB_USERS" 2>/dev/null
+
+    if [[ -f "$LIMITES_DB" ]]; then
+        sed -i -E '/:(Ilimitado|ilimitado|0|0GB|0 GB|none|unlimited|∞)[[:space:]]*$/d' "$LIMITES_DB" 2>/dev/null
+        sed -i -E '/^[^:]+:[^0-9]+$/d' "$LIMITES_DB" 2>/dev/null
+    fi
+}
+
+_traf_parsear_ssh_journal() {
+    awk '
+        {
+            ts = $1 + 0
+            if (ts <= 0) next
+            for (i = 2; i < NF; i++) {
+                if ($i != "Accepted") continue
+                if ($(i+1) != "password" && $(i+1) != "publickey") continue
+                user = ""; ip = ""
+                for (j = i + 2; j <= NF; j++) {
+                    if ($j == "for") user = $(j+1)
+                    if ($j == "from") ip = $(j+1)
+                }
+                if (user != "" && user != "root" && ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/)
+                    printf "%.0f|ssh|%s|%s\n", ts, user, ip
+                break
+            }
+        }'
+}
+
+_traf_parsear_udp_journal() {
+    awk '
+        {
+            ts = $1 + 0
+            if (ts <= 0) next
+            if (index($0, "Client connected") == 0) next
+            if (match($0, /\[src:[^]]*\]/) == 0) next
+            src = substr($0, RSTART + 5, RLENGTH - 6)
+            p = index(src, ":")
+            if (p == 0) next
+            ip = substr(src, 1, p - 1)
+            user = ""
+            if (match($0, /\[user:[^]]*\]/))
+                user = substr($0, RSTART + 6, RLENGTH - 7)
+            if (user != "" && user != "root" && ip ~ /^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$/)
+                printf "%.0f|udp|%s|%s\n", ts, user, ip
+        }'
+}
+
+trafico_cachear_udp_ultima() {
+    trafico_init
+    command -v journalctl >/dev/null 2>&1 || return 0
+
+    local validos=""
+    [[ -f "$DB_USERS" ]] && validos=$(awk -F: '$1!="" && $1!~/^#/ && $1!="root" {print $1}' "$DB_USERS" 2>/dev/null | tr -d ' \t\r')
+    [[ -n "$validos" ]] || return 0
+
+    local ventana="${TRAF_UDP_VENTANA:-6 hours ago}"
+    [[ -s "$UDP_ULTIMA_DB" ]] || ventana="${TRAF_UDP_SEED_VENTANA:-7 days ago}"
+    local dias="${TRAF_UDP_ULTIMA_DIAS:-30}"
+    local corte=$(( $(date +%s) - dias * 86400 ))
+    local tmp="${UDP_ULTIMA_DB}.tmp.$$"
+
+    local nuevas=""
+    nuevas=$(journalctl -u maxinet-udp.service -u udp-custom.service -u udp-custom \
+        --since "$ventana" -o short-unix --no-pager -q -n 2000 2>/dev/null \
+        | _traf_parsear_udp_journal)
+
+    {
+        [[ -s "$UDP_ULTIMA_DB" ]] && cat "$UDP_ULTIMA_DB"
+        [[ -n "$nuevas" ]] && printf '%s\n' "$nuevas" | awk -F'|' '$2 == "udp" { print $3 "|" $1 "|" $4 }'
+    } | awk -F'|' -v corte="$corte" -v validos="$validos" '
+        BEGIN {
+            n = split(validos, a, "\n")
+            for (i = 1; i <= n; i++) if (a[i] != "") ok[a[i]] = 1
+        }
+        $1 == "" || $1 == "root" { next }
+        ($1 in ok) && $2 ~ /^[0-9]+$/ && $2 + 0 >= corte {
+            if ($2 + 0 > mejor[$1]) {
+                mejor[$1] = $2 + 0
+                mip[$1] = $3
+            } else if ($2 + 0 == mejor[$1] && $3 != "") {
+                mip[$1] = $3
+            }
+        }
+        END {
+            for (u in mejor) {
+                if (mip[u] != "") printf "%s|%.0f|%s\n", u, mejor[u], mip[u]
+                else printf "%s|%.0f\n", u, mejor[u]
+            }
+        }
+    ' > "$tmp" 2>/dev/null
+
+    if [[ -s "$tmp" ]]; then
+        sort -t'|' -k1,1 "$tmp" -o "$tmp" 2>/dev/null
+        mv -f "$tmp" "$UDP_ULTIMA_DB" 2>/dev/null || rm -f "$tmp"
+    else
+        rm -f "$tmp"
+    fi
 }
 
 trafico_formatear() {
@@ -341,6 +439,7 @@ TEOF
 }
 
 if [[ "${1:-}" == "--snapshot" ]]; then
+    trafico_cachear_udp_ultima
     trafico_guardar_snapshot
     trafico_verificar_limites
     exit 0

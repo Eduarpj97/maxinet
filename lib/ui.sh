@@ -314,7 +314,7 @@ mv_signature(){
 
 # ── Header principal: ═══ + ◆ título ◆ + ═══ (estilo banner) ──
 mv_header(){
-    local TITLE="$1" SUB="${2:-}" VER="${3:-v2.13}"
+    local TITLE="$1" SUB="${2:-}" VER="${3:-v3.0}"
     mv_line
     mv_center "${MV_GLD}◆${MV_R}  ${MV_BLD}${MV_WHT}${TITLE}${MV_R}  ${MV_DIM}[${MV_R}${MV_CYN}${VER}${MV_R}${MV_DIM}]${MV_R}  ${MV_GLD}◆${MV_R}"
     [[ -n "$SUB" ]] && mv_center "${MV_YLW}${SUB}${MV_R}"

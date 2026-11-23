@@ -324,25 +324,35 @@ SQUID_S=$(proto_state squid "squid")
 SSH_CONN=$(ps -C sshd -o args= 2>/dev/null | grep -c "\[priv\]")
 DROP_CONN=$(pgrep -x dropbear 2>/dev/null | wc -l)
 [[ $DROP_CONN -gt 0 ]] && DROP_CONN=$((DROP_CONN - 1))
-ONLINE_USERS=$(ps -C sshd -o args= 2>/dev/null | grep "\[priv\]" | awk -F'sshd: ' '{print $2}' | awk '{print $1}' | grep -vE '^(root|unknown|invalid|\(null\))$' | sort -u | wc -l)
 
-# Contar conexiones por protocolo (auto-detect puertos activos)
-timeout 3 ss -ulnp > /tmp/_mv_udp_l 2>/dev/null
-timeout 3 ss -tnlp > /tmp/_mv_tcp_l 2>/dev/null
-timeout 3 ss -unp  > /tmp/_mv_udp 2>/dev/null
-timeout 3 ss -tnp  > /tmp/_mv_tcp 2>/dev/null
-
+# Cargar motor de conexiones 100% real si está disponible
 UDP_C=0; BAD_C=0; ZIP_C=0; XRAY_C=0
+declare -a UNIFIED_USERS=()
+while read -r u; do
+    [[ -n "$u" ]] && UNIFIED_USERS+=("$u")
+done < <(ps -C sshd -o args= 2>/dev/null | grep "\[priv\]" | awk -F'sshd: ' '{print $2}' | awk '{print $1}' | grep -vE '^(root|unknown|invalid|\(null\))$')
 
-# UDP Custom
-if grep -q '"udp"' /tmp/_mv_udp_l 2>/dev/null; then
-    for P in $(grep '"udp"' /tmp/_mv_udp_l | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un); do
-        C=$(awk -v p=":${P}" '$4 ~ p {c++} END{print c+0}' /tmp/_mv_udp 2>/dev/null)
-        UDP_C=$((UDP_C + C))
-    done
+if [[ -f "$BASE/herramientas/conexiones.sh" ]]; then
+    source "$BASE/herramientas/conexiones.sh" 2>/dev/null
+    # Conexiones y usuarios UDP Custom reales
+    while IFS='|' read -r k_ip k_user k_port; do
+        [[ -z "$k_user" || "$k_ip" =~ ^# ]] && continue
+        ((UDP_C++))
+        UNIFIED_USERS+=("$k_user")
+    done < <(conexiones_udp_custom 2>/dev/null)
+
+    # Conexiones y usuarios ZiVPN reales
+    while IFS='|' read -r z_auth z_ip z_fec; do
+        [[ -z "$z_auth" || "$z_auth" =~ ^# ]] && continue
+        ((ZIP_C++))
+        UNIFIED_USERS+=("$z_auth")
+    done < <(zivpn_sesiones_reales 6 "5667" 2>/dev/null)
 fi
 
-# BadVPN
+# BadVPN y Xray vía sockets TCP establecidos
+timeout 3 ss -tnlp > /tmp/_mv_tcp_l 2>/dev/null
+timeout 3 ss -tnp  > /tmp/_mv_tcp 2>/dev/null
+
 if grep -q 'badvpn' /tmp/_mv_tcp_l 2>/dev/null; then
     for P in $(grep 'badvpn' /tmp/_mv_tcp_l | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un); do
         C=$(awk -v p=":${P}" '$4 ~ p && $1 == "ESTAB" {c++} END{print c+0}' /tmp/_mv_tcp 2>/dev/null)
@@ -350,15 +360,6 @@ if grep -q 'badvpn' /tmp/_mv_tcp_l 2>/dev/null; then
     done
 fi
 
-# ZiVPN
-if grep -q 'zivpn' /tmp/_mv_udp_l 2>/dev/null; then
-    for P in $(grep 'zivpn' /tmp/_mv_udp_l | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un); do
-        C=$(awk -v p=":${P}" '$4 ~ p {c++} END{print c+0}' /tmp/_mv_udp 2>/dev/null)
-        ZIP_C=$((ZIP_C + C))
-    done
-fi
-
-# Xray (haproxy public ports + xray local ports)
 if grep -q 'xray' /tmp/_mv_tcp_l 2>/dev/null; then
     for P in $(grep 'haproxy\|xray' /tmp/_mv_tcp_l | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un); do
         C=$(awk -v p=":${P}" '$4 ~ p && $1 == "ESTAB" {c++} END{print c+0}' /tmp/_mv_tcp 2>/dev/null)
@@ -366,8 +367,9 @@ if grep -q 'xray' /tmp/_mv_tcp_l 2>/dev/null; then
     done
 fi
 
-rm -f /tmp/_mv_udp_l /tmp/_mv_tcp_l /tmp/_mv_udp /tmp/_mv_tcp
+rm -f /tmp/_mv_tcp_l /tmp/_mv_tcp
 
+ONLINE_USERS=$(printf '%s\n' "${UNIFIED_USERS[@]}" 2>/dev/null | sort -u | grep -v '^$' | wc -l)
 TOTAL_CONN=$((SSH_CONN + DROP_CONN + UDP_C + BAD_C + ZIP_C + XRAY_C))
 
 #=========================================================

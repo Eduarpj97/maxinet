@@ -435,8 +435,14 @@ PROTO_TOTAL=0
 ALL_TCP=$(timeout 3 ss -tnlp 2>/dev/null)
 ALL_UDP=$(timeout 3 ss -ulnp 2>/dev/null)
 
-# 1) UDP Custom  proceso "udp" en puerto UDP
-if echo "$ALL_UDP" | grep -q '"udp"'; then
+# 1) UDP Custom  sesiones reales vía motor de conexiones
+if [[ -f "$BASE/herramientas/conexiones.sh" ]] && echo "$ALL_UDP" | grep -q '"udp"'; then
+    source "$BASE/herramientas/conexiones.sh" 2>/dev/null
+    U_PORTS=$(echo "$ALL_UDP" | grep '"udp"' | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un | tr '\n' ',' | sed 's/,$//')
+    U_C=$(conexiones_udp_custom 2>/dev/null | grep -v '^#' | grep -c '[^[:space:]]' || echo 0)
+    PROTO_LINES="${PROTO_LINES}   ${WHITE}UDP Custom${RESET}   ${GRAY}[$U_PORTS]${RESET}      ${CYAN}:${RESET}  ${YELLOW}${U_C}${RESET}\n"
+    PROTO_TOTAL=$((PROTO_TOTAL + U_C))
+elif echo "$ALL_UDP" | grep -q '"udp"'; then
     U_PORTS=$(echo "$ALL_UDP" | grep '"udp"' | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un | tr '\n' ',' | sed 's/,$//')
     U_C=0
     for P in $(echo "$U_PORTS" | tr ',' ' '); do
@@ -459,29 +465,16 @@ if echo "$ALL_TCP" | grep -q 'badvpn'; then
     PROTO_TOTAL=$((PROTO_TOTAL + B_C))
 fi
 
-# 3) ZiVPN  sesiones REALES desde journald (su socket UDP es multiplexado:
-#    nunca muestra peers individuales en ss -> conteo por puerto daba 0)
+# 3) ZiVPN  sesiones REALES de kernel conntrack y bitácora auth
 if echo "$ALL_UDP" | grep -q 'zivpn'; then
     Z_PORTS=$(echo "$ALL_UDP" | grep 'zivpn' | awk '{print $4}' | grep -oP ':\K[0-9]+' | sort -un | tr '\n' ',' | sed 's/,$//')
-    ZIV_SUMMARY=$(timeout 8 journalctl _COMM=zivpn --since "-24 hours" --no-pager -o cat 2>/dev/null | awk '
-        /client connected/ && match($0, /addr": "[^"]+"/) {
-            a = substr($0, RSTART+8, RLENGTH-9); gsub(/"/, "", a);
-            if (match($0, /[0-9][0-9]:[0-9][0-9]:[0-9][0-9]/)) t = substr($0, RSTART, RLENGTH);
-            else t = "?";
-            seen[a] = t;
-        }
-        /client disconnected/ && match($0, /addr": "[^"]+"/) {
-            a = substr($0, RSTART+8, RLENGTH-9); gsub(/"/, "", a);
-            delete seen[a];
-        }
-        END {
-            c = 0;
-            for (a in seen) { c++; if (c <= 10) print a "|" seen[a]; }
-            printf "%d\n", c;
-        }')
-    Z_C=$(tail -n 1 <<<"$ZIV_SUMMARY")
-    Z_C=${Z_C:-0}
-    ZIV_ROWS="$(sed '/^$/d' <<<"$ZIV_SUMMARY" | head -n -1)"
+    [[ -z "$Z_PORTS" ]] && Z_PORTS="5667"
+    if [[ -f "$BASE/herramientas/conexiones.sh" ]]; then
+        source "$BASE/herramientas/conexiones.sh" 2>/dev/null
+        Z_C=$(zivpn_sesiones_reales 6 "$Z_PORTS" 2>/dev/null | grep -v '^#' | grep -c '[^[:space:]]' || echo 0)
+    else
+        Z_C=0
+    fi
     PROTO_LINES="${PROTO_LINES}   ${WHITE}ZiVPN${RESET}        ${GRAY}[$Z_PORTS]${RESET}      ${CYAN}:${RESET}  ${YELLOW}${Z_C}${RESET}\n"
     PROTO_TOTAL=$((PROTO_TOTAL + Z_C))
 fi
