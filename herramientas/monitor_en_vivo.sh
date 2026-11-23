@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network v2.12
+# Maxinet Network v2.13
 # Monitor Conectados (En Vivo) · 100% Datos Reales
 # Sin simulación: ss / conntrack / ps / proc / lastlog
 # ZiVPN: lee TODAS las claves de config.json (igual a Abbienet)
@@ -425,7 +425,7 @@ mostrar_pantalla_monitor() {
     printf '%b\n' "${CYN}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ${RST}"
     printf '%b\n' "${CYN}╚$(_rep '═' 72)╝${RST}"
     printf '%b\n' " ${BLD}${GRN}      ⟐  M O N I T O R   D E   C O N E X I O N E S  ⟐${RST}"
-    printf '%b\n' " ${BLD}${GOL}                    v2.12 · Panel en Vivo${RST}"
+    printf '%b\n' " ${BLD}${GOL}                    v2.13 · Panel en Vivo${RST}"
     echo ""
 
     # ═══════════════ BARRA EN VIVO ═══════════════
