@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.0.1")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.0.2")}"
             shift
             ;;
         --limpiar-solo)

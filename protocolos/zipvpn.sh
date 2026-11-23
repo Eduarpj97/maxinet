@@ -717,9 +717,35 @@ ver_conectados_zivpn() {
     _zv_grupo "CONEXIONES ACTIVAS (KERNEL & BITÁCORA)"
 
     declare -F maxinet_ct_precachear >/dev/null 2>&1 && maxinet_ct_precachear
-    local sesiones agrupadas
+    # Modo liveness: journal o kernel (misma lógica que monitor_en_vivo.sh)
+    local z_modo="journal" z_umbral=120
+    declare -F zivpn_modo_en_linea >/dev/null 2>&1 && z_modo=$(zivpn_modo_en_linea "$PUERTO")
+    if [[ "$z_modo" == "kernel" ]] && declare -F zivpn_umbral_frescura >/dev/null 2>&1; then
+        z_umbral=$(zivpn_umbral_frescura)
+    fi
+    local sesiones z_rows=""
     sesiones=$(zivpn_sesiones_reales 6 "$PUERTO" 2>/dev/null)
-    agrupadas=$(printf '%s\n' "$sesiones" | zivpn_agrupar 2>/dev/null)
+    declare -A _viva_cache=()
+    while IFS='|' read -r z_pass z_ip z_puerto z_desde; do
+        [[ -z "$z_pass" || "$z_pass" == \#* ]] && continue
+        local z_viva="N/D"
+        if [[ "$z_modo" == "journal" ]]; then
+            z_viva="si"
+        else
+            if [[ -n "${_viva_cache[$z_ip]:-}" ]]; then
+                z_viva="${_viva_cache[$z_ip]}"
+            else
+                declare -F conntrack_ip_viva >/dev/null 2>&1 && z_viva=$(conntrack_ip_viva "$z_ip" "$z_umbral")
+                [[ -z "$z_viva" ]] && z_viva="N/D"
+                _viva_cache["$z_ip"]="$z_viva"
+            fi
+        fi
+        z_rows+="${z_pass}|${z_ip}|${z_puerto}|${z_desde}|${z_viva}"$'\n'
+    done <<< "$sesiones"
+    local agrupadas=""
+    if [[ -n "$z_rows" ]] && declare -F zivpn_agrupar >/dev/null 2>&1; then
+        agrupadas=$(printf '%s' "$z_rows" | zivpn_agrupar | sort -t'|' -k6,6rn -k3,3rn)
+    fi
 
     if [[ -n "$agrupadas" ]]; then
         printf '%s\n' "$agrupadas" | zivpn_pintar_tabla 2 "kernel"

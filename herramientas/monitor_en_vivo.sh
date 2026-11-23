@@ -495,21 +495,13 @@ _udp_recolectar() {
         fi
 
         u_viva="no"
-        if [[ "$UDP_MODO" == "journal" ]]; then
+        if [[ "$_tiene_ssh" -eq 1 ]]; then
+            u_viva="si"
+        elif [[ "$UDP_MODO" == "journal" ]]; then
             if [[ "$u_estado" == "conectado" ]] && _udp_evento_reciente "$u_ultimo" "$UDP_VENTANA_UDP"; then
-                u_viva="si"
-            elif [[ "$_tiene_ssh" -eq 1 ]] && _udp_evento_reciente "$u_ultimo" "$UDP_VENTANA_UDP"; then
                 u_viva="si"
             fi
         elif [[ "$u_estado" == "conectado" ]]; then
-            cv="N/D"
-            declare -F conntrack_ip_viva >/dev/null 2>&1 && cv=$(conntrack_ip_viva "$u_ip" "$UDP_UMBRAL")
-            if [[ "$cv" == "si" ]]; then
-                u_viva="si"
-            elif [[ "$_tiene_ssh" -eq 1 ]] && _udp_evento_reciente "$u_ultimo" "$UDP_VENTANA_UDP"; then
-                u_viva="si"
-            fi
-        elif [[ "$_tiene_ssh" -eq 1 ]]; then
             cv="N/D"
             declare -F conntrack_ip_viva >/dev/null 2>&1 && cv=$(conntrack_ip_viva "$u_ip" "$UDP_UMBRAL")
             if [[ "$cv" == "si" ]]; then
@@ -575,7 +567,7 @@ _udp_recolectar() {
         [[ "$n_ssh" -gt 0 ]] || continue
         [[ -n "${UDP_REGISTRADOS[$r_user]:-}" ]] || continue
         n_cur="${USER_LIVE_COUNT[$r_user]:-0}"
-        if [[ "$n_ssh" -gt "$n_cur" && "$n_cur" -gt 0 ]]; then
+        if [[ "$n_ssh" -gt "$n_cur" ]]; then
             diff=$(( n_ssh - n_cur ))
             ref_ip="${USER_LAST_IP[$r_user]:-${UDP_CACHE_IP[$r_user]:-127.0.0.1}}"
             ref_desde="${USER_LAST_DESDE[$r_user]:-$(date '+%Y-%m-%d %H:%M:%S')}"
@@ -871,27 +863,49 @@ mostrar_conectados() {
             UDP_GROUPS_UI+=("${_ug}|${UDP_ULTIMO_EVENTO[$_uu]:-}")
         done
 
-        # Sesiones ZiVPN 100% REAL
+        # Sesiones ZiVPN 100% REAL — liveness por IP (conntrack/journal)
         local -a ZIVPN_GROUPS=()
         local ZIVPN_USR=0
         local ZIVPN_PASS_ON=0
         if [[ "$ZIVPN_SVC_ACTIVE" -eq 1 && "$CONEXIONES_DISP" -eq 1 ]]; then
-            local z_sesiones
-            z_sesiones=$(zivpn_sesiones_reales 6 "$ZIVPN_PORT" 2>/dev/null)
-            if [[ -n "$z_sesiones" ]]; then
-                mapfile -t ZIVPN_GROUPS < <(printf '%s\n' "$z_sesiones" | zivpn_agrupar)
+            # Precachear conntrack UNA vez para todo el ciclo
+            declare -F maxinet_ct_precachear >/dev/null 2>&1 && maxinet_ct_precachear
+            # Modo: journal (sesión abierta=viva) ó kernel (frescura conntrack)
+            local z_modo="journal" z_umbral=120
+            declare -F zivpn_modo_en_linea >/dev/null 2>&1 && z_modo=$(zivpn_modo_en_linea "$ZIVPN_PORT")
+            if [[ "$z_modo" == "kernel" ]] && declare -F zivpn_umbral_frescura >/dev/null 2>&1; then
+                z_umbral=$(zivpn_umbral_frescura)
+            fi
+            local z_out z_rows=""
+            z_out=$(zivpn_sesiones_reales 6 "$ZIVPN_PORT" 2>/dev/null)
+            declare -A _viva_cache=()
+            while IFS='|' read -r z_pass z_ip z_puerto z_desde; do
+                [[ -z "$z_pass" || "$z_pass" == \#* ]] && continue
+                local z_viva="N/D"
+                if [[ "$z_modo" == "journal" ]]; then
+                    z_viva="si"
+                else
+                    if [[ -n "${_viva_cache[$z_ip]:-}" ]]; then
+                        z_viva="${_viva_cache[$z_ip]}"
+                    else
+                        declare -F conntrack_ip_viva >/dev/null 2>&1 && z_viva=$(conntrack_ip_viva "$z_ip" "$z_umbral")
+                        [[ -z "$z_viva" ]] && z_viva="N/D"
+                        _viva_cache["$z_ip"]="$z_viva"
+                    fi
+                fi
+                z_rows+="${z_pass}|${z_ip}|${z_puerto}|${z_desde}|${z_viva}"$'\n'
+            done <<< "$z_out"
+            if [[ -n "$z_rows" ]] && declare -F zivpn_agrupar >/dev/null 2>&1; then
+                mapfile -t ZIVPN_GROUPS < <(printf '%s' "$z_rows" | zivpn_agrupar | sort -t'|' -k6,6rn -k3,3rn)
+            fi
+            if [[ ${#ZIVPN_GROUPS[@]} -gt 0 ]]; then
                 declare -A ZIVPN_SEEN_IP=()
                 local zg_line zg_pass zg_ses zg_ips zg_nip zg_ult zg_nv
                 for zg_line in "${ZIVPN_GROUPS[@]}"; do
                     IFS='|' read -r zg_pass zg_ses zg_ips zg_nip zg_ult zg_nv <<< "$zg_line"
                     if [[ "${zg_nv:-0}" -gt 0 ]]; then
                         ZIVPN_PASS_ON=$(( ZIVPN_PASS_ON + 1 ))
-                        for z_ip in $zg_ips; do
-                            [[ -n "$z_ip" && -z "${ZIVPN_SEEN_IP[$z_ip]:-}" ]] && {
-                                ZIVPN_SEEN_IP["$z_ip"]=1
-                                ZIVPN_USR=$(( ZIVPN_USR + 1 ))
-                            }
-                        done
+                        ZIVPN_USR=$(( ZIVPN_USR + ${zg_nip:-0} ))
                     fi
                 done
             fi
@@ -1079,7 +1093,7 @@ mostrar_conectados() {
                             _e=$(echo "$_e" | tr -d ' \t\r\n')
                             _l=$(echo "$_l" | tr -d ' \t\r\n')
                             [[ -n "$_e" ]] && exp_val="$_e"
-                            if [[ -n "$_l" && "$_l" != "0" ]]; then
+                            if [[ -n "$_l" && "$_l" =~ ^[0-9]+$ && "$_l" -gt 0 ]]; then
                                 lim_val="${_l} disp"
                             fi
                         fi
@@ -1159,7 +1173,7 @@ mostrar_conectados() {
                 [[ -f "$DIR_ZIVPN/limites.db" ]] && {
                     local lim_found
                     lim_found=$(grep "^${zp}:" "$DIR_ZIVPN/limites.db" 2>/dev/null | cut -d: -f2)
-                    [[ -n "$lim_found" ]] && zp_lim="${lim_found} disp"
+                    [[ -n "$lim_found" && "$lim_found" =~ ^[0-9]+$ && "$lim_found" -gt 0 ]] && zp_lim="${lim_found} disp"
                 }
                 printf "   ${GY}│${RS} ${GD}%2s${RS} ${GY}│${RS} ${YW}%-19s${RS} ${GY}│${RS} ${CY}%-12s${RS} ${GY}│${RS} ${GR}%-10s${RS} ${GY}│${RS}\n" \
                     "$zid" "$zp" "$zp_exp" "$zp_lim"
