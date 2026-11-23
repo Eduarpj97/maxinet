@@ -24,6 +24,13 @@ VERSION_FILE="$BASE/version.txt"
 RAW_VER="https://raw.githubusercontent.com/Eduarpj97/maxinet/main/version.txt"
 REPO_TARBALL="https://github.com/Eduarpj97/maxinet/archive/refs/heads/main.tar.gz"
 
+# --yes / -y flag para auto-confirmar actualización (útil en cron/menu no interactivo)
+FORCE_YES=0
+case "${1:-}" in
+    --yes|-y) FORCE_YES=1 ;;
+    --check) FORCE_YES=0 ;;  # solo verifica, no actualiza
+esac
+
 RESET="${MV_R:-\e[0m}"; RED="${MV_RED:-\e[1;91m}"; GREEN="${MV_GRN:-\e[1;92m}"; GOLD="${MV_GLD:-\e[1;93m}"; CYAN="${MV_CYN:-\e[1;96m}"; WHITE="${MV_WHT:-\e[1;97m}"; GRAY="${MV_DIM:-\e[1;90m}"
 
 # Versión local instalada
@@ -253,19 +260,27 @@ else
     echo ""
     echo -e "  ${WHITE}  Puedes actualizar cuando quieras.${RESET}"
     echo ""
-    read -rp "$(echo -e "${CYAN}  ¿Deseas actualizar ahora? [s/N] › ${RESET}")" CONFIRMA
+    if [[ $FORCE_YES -eq 1 ]]; then
+        CONFIRMA="s"
+    else
+        read -rp "$(echo -e "${CYAN}  ¿Deseas actualizar ahora? [s/N] › ${RESET}")" CONFIRMA
+    fi
     case "${CONFIRMA,,}" in
         s|si|sí|y|yes)
             aplicar_update
             echo ""
-            read -n1 -r -p "$(trx '  Presiona ENTER para continuar...')"
+            if [[ $FORCE_YES -eq 0 ]]; then
+                read -n1 -r -p "$(trx '  Presiona ENTER para continuar...')"
+            fi
             exec "$BASE/menu.sh"
         ;;
         *)
             echo -e "  ${GOLD}  ⏭ Omitido. Puedes actualizar luego desde el menú 🛠 [09] Update.${RESET}"
             echo -e "  ${GRAY}  El panel sigue funcionando normal.${RESET}"
             echo ""
-            read -n1 -r -p "$(trx '  Presiona ENTER para volver...')"
+            if [[ $FORCE_YES -eq 0 ]]; then
+                read -n1 -r -p "$(trx '  Presiona ENTER para volver...')"
+            fi
             exec "$BASE/menu.sh"
         ;;
     esac
