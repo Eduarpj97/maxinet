@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network Premium v2.6
+# Maxinet Network Premium v2.7
 # Optimizador de Red Carrier Grade & Latencia
 # MTU 9000 · Zero-Copy Buffers · TCP BBRv3 · FQ
 #==================================================
@@ -145,7 +145,7 @@ _opt_dibujar_panel() {
 
     echo ""
     echo -e " ${C_DORADO}◆${C_RESET} ${C_B_BLANCO}OPTIMIZACIÓN DE RED & BUFFER CARRIER GRADE${C_RESET}"
-    _borde_caja top "◈ MAXINET · OPTIMIZADOR v2.6 ◈" "$OP_B"
+    _borde_caja top "◈ MAXINET · OPTIMIZADOR v2.7 ◈" "$OP_B"
 
     imprimir_centro_caja "🌐 Interfaz: ${C_B_CIAN}${iface}${C_RESET}  ·  MTU: ${C_B_AMARILLO}${mtu_act}${C_RESET}  ·  Buffers: ${C_B_VERDE}${buf_mb} MB${C_RESET}" "$OP_B"
     imprimir_centro_caja "⚡ Congestión: ${C_B_VERDE}${cc^^} + ${qdisc^^}${C_RESET}  ·  Modo: Zero-Copy" "$OP_B"
