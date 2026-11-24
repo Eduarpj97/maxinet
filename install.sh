@@ -3952,19 +3952,14 @@ run_cmd "Instalando servicio Monitor Conectados (En Vivo)" "$LINENO" "
     fi
 "
 
-# 4. Instalar cron para Tráfico & Consumo (snapshot cada minuto)
-run_cmd "Instalando cron Tráfico & Consumo (snapshot 1 min)" "$LINENO" "
-    if [[ -f /etc/maxinet/herramientas/network_traffic.sh ]]; then
-        mkdir -p /etc/maxinet/scripts
-        cat > /etc/maxinet/scripts/trafico_cron.sh << 'TROF'
-#!/bin/bash
-BASE="/etc/maxinet"
-# Base del día para el Monitor (se reinicia a las 00:00 reales)
-bash "$BASE/herramientas/monitor_en_vivo.sh" --snapshot-iface >/dev/null 2>&1
-bash "$BASE/herramientas/network_traffic.sh" --snapshot >/dev/null 2>&1
-TROF
-        chmod +x /etc/maxinet/scripts/trafico_cron.sh
-        ( crontab -l 2>/dev/null | grep -v 'trafico_cron' ; echo '* * * * * /bin/bash /etc/maxinet/scripts/trafico_cron.sh >/dev/null 2>&1' ) | crontab -
+# 4. Instalar cron para Tráfico & Consumo (snapshot cada minuto) - NUEVO MÓDULO trafico.sh
+run_cmd "Instalando cron Tráfico & Uso (snapshot 1 min)" "$LINENO" "
+    if [[ -f /etc/maxinet/herramientas/trafico.sh ]]; then
+        mkdir -p /etc/maxinet/trafico/historial /etc/maxinet/trafico/snapshots /etc/maxinet/scripts
+        touch /etc/maxinet/trafico/consumo.db /etc/maxinet/trafico/limites_gb.db /etc/maxinet/trafico/bloqueados.db /etc/maxinet/trafico/ip_map.db /etc/maxinet/trafico/udp_ultima.db
+        bash /etc/maxinet/herramientas/trafico.sh --init
+        bash /etc/maxinet/herramientas/trafico.sh --snapshot
+        source /etc/maxinet/herramientas/trafico.sh && trafico_instalar_servicio
     fi
 "
 
