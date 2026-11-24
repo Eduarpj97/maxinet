@@ -482,10 +482,8 @@ if is_lxc; then
 fi
 H2
 printf "${CYAN}║${RESET}   ${GREEN}[1]${WHITE} 🧹 Limpiar recursos  ${GRAY}(RAM/caché/swap/logs/procesos)${CYAN}║${RESET}\n"
-printf "${CYAN}║${RESET}   ${GREEN}[2]${WHITE} 🚀 Optimizar red     ${GRAY}(BBR+MTU1470+buffers64MB)${CYAN}     ║${RESET}\n"
-printf "${CYAN}║${RESET}   ${GREEN}[3]${WHITE} ⏰ Limpieza automática ${GRAY}(cada X tiempo)${CYAN}          ║${RESET}\n"
-printf "${CYAN}║${RESET}   ${GREEN}[4]${WHITE} ⚙️ Editar valores de red ${GRAY}(buffers/MTU)${CYAN}            ║${RESET}\n"
-printf "${CYAN}║${RESET}   ${GREEN}[5]${WHITE} 📊 Ver recursos      ${GRAY}(RAM/CPU/procesos top)${CYAN}     ║${RESET}\n"
+printf "${CYAN}║${RESET}   ${GREEN}[2]${WHITE} ⏰ Limpieza automática ${GRAY}(cada X tiempo)${CYAN}          ║${RESET}\n"
+printf "${CYAN}║${RESET}   ${GREEN}[3]${WHITE} 📊 Ver recursos      ${GRAY}(RAM/CPU/procesos top)${CYAN}     ║${RESET}\n"
 printf "${CYAN}║${RESET}   ${RED}[0]${WHITE} ↩ Regresar${CYAN}                                    ║${RESET}\n"
 H3
 echo ""
@@ -493,10 +491,8 @@ read -rp "$(trx '   ► Opción: ')" OP
 
 case "$OP" in
     1) limpiar_recursos ;;
-    2) optimizar_red ;;
-    3) programar_limpieza ;;
-    4) editar_red ;;
-    5) ver_recursos ;;
+    2) programar_limpieza ;;
+    3) ver_recursos ;;
     0) exec bash "$BASE/herramientas/menu.sh" ;;
     *) exec bash "$0" ;;
 esac
