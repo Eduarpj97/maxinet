@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v3.1.1
+# Maxinet Network - Premium Welcome Banner v3.1.2
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -22,24 +22,10 @@ UPTIME=$(uptime -p 2>/dev/null | sed 's/up //')
 FECHA=$(date +"%d-%m-%Y")
 HORA=$(date +"%H:%M:%S")
 ONLINE=$(who 2>/dev/null | wc -l)
-# ── Info de red real (MTU, Buffer, Congestión) ──
+
+# ── Info de red simplificada ──
 IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}')
 IFACE="${IFACE:-eth0}"
-MTU_REAL=$(cat /sys/class/net/"$IFACE"/mtu 2>/dev/null || echo "1470")
-RMEM=$(sysctl -n net.ipv4.tcp_rmem 2>/dev/null | awk '{print $3}')
-WMEM=$(sysctl -n net.ipv4.tcp_wmem 2>/dev/null | awk '{print $3}')
-BUF_RX=$((RMEM / 1024 / 1024))
-BUF_TX=$((WMEM / 1024 / 1024))
-[[ $BUF_RX -eq 0 ]] && BUF_RX=64
-[[ $BUF_TX -eq 0 ]] && BUF_TX=64
-CONG_REAL=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "bbr")
-if [[ "$CONG_REAL" == "bbr" ]]; then
-    if sysctl -n net.core.default_qdisc 2>/dev/null | grep -q fq; then
-        CONG_REAL="BBR v3 + FQ Pacing"
-    else
-        CONG_REAL="BBR v3"
-    fi
-fi
 
 # ── Colores (ANSI 256) ──────────────────────────
 C_RESET="\e[0m"
@@ -143,7 +129,7 @@ center "${C_CIAN}${BOLD}    ████╗ ████║██╔══██
 center "${C_CIAN}${BOLD}    ██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   ${C_RESET}"
 center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   ${C_RESET}"
 center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   ${C_RESET}"
-center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝╚══════╝   ╚═╝   ${C_RESET}"
+center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═══╝╚══════╝   ╚═╝   ${C_RESET}"
 center ""
 center "${C_DORADO}${BOLD}    ──  ◆  MAXINET NETWORK  ◆  ──  ${C_RESET}"
 center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
@@ -163,15 +149,6 @@ p_fila "⚡" "Uptime"       "${UPTIME}"
 p_fila "✪" "Conectados"   "${ONLINE}"
 p_fila "◆" "Fecha"        "${FECHA}"
 p_fila "◉" "Hora"         "${HORA}"
-p_fila "🔧" "MTU"          "${MTU_REAL}"
-p_fila "📦" "Buffer RX/TX" "${BUF_RX}MB / ${BUF_TX}MB"
-p_fila "🚀" "Congestión"   "${CONG_REAL}"
-if [[ -n "$TG_CHANNEL" ]]; then
-    p_fila "❯" "Canal"    "${TG_CHANNEL}"
-fi
-if [[ -n "$TG_GROUP" ]]; then
-    p_fila "❯" "Grupo"    "${TG_GROUP}"
-fi
 p_marco_inf
 center ""
 
