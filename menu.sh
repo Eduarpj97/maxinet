@@ -939,28 +939,6 @@ EOF
     exec bash "$BASE/menu.sh"
 ;;
  
-13)
-    clear
-    if [[ -f "$BASE/herramientas/optimizador_abbienet.sh" ]]; then
-        bash "$BASE/herramientas/optimizador_abbienet.sh" --plus
-    else
-        echo -e "${RED}❌ optimizador_abbienet.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
-        sleep 2
-        exec bash "$BASE/menu.sh"
-    fi
-;;
- 
-13)
-    clear
-    if [[ -f "$BASE/herramientas/optimizador_abbienet.sh" ]]; then
-        bash "$BASE/herramientas/optimizador_abbienet.sh" --plus
-    else
-        echo -e "${RED}❌ optimizador_abbienet.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
-        sleep 2
-        exec bash "$BASE/menu.sh"
-    fi
-;;
- 
 11)
     clear
     if [[ -f "$BASE/protocolos/v2ray.sh" ]]; then
