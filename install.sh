@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.3")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "7.1.5")}"
             shift
             ;;
         --limpiar-solo)
@@ -3939,7 +3939,7 @@ run_cmd "Configurando iptables accounting UID para Tráfico & Consumo" "$LINENO"
     iptables -C OUTPUT -j MAXINET_TRAFFIC 2>/dev/null || iptables -I OUTPUT 1 -j MAXINET_TRAFFIC
     # Regla por defecto para root (sin accounting)
     iptables -C MAXINET_TRAFFIC -m owner --uid-owner 0 -j RETURN 2>/dev/null || iptables -A MAXINET_TRAFFIC -m owner --uid-owner 0 -j RETURN
-    # Reglas por usuario se agregarán dinámicamente via network_traffic.sh --snapshot
+    # Reglas por usuario se agregan dinámicamente via trafico.sh --snapshot
 "
 
 # 3. Instalar y habilitar maxinet-monitor.service (Monitor Conectados En Vivo)
@@ -3959,7 +3959,7 @@ run_cmd "Instalando cron Tráfico & Uso (snapshot 1 min)" "$LINENO" "
         touch /etc/maxinet/trafico/consumo.db /etc/maxinet/trafico/limites_gb.db /etc/maxinet/trafico/bloqueados.db /etc/maxinet/trafico/ip_map.db /etc/maxinet/trafico/udp_ultima.db
         bash /etc/maxinet/herramientas/trafico.sh --init
         bash /etc/maxinet/herramientas/trafico.sh --snapshot
-        source /etc/maxinet/herramientas/trafico.sh && trafico_instalar_servicio
+        bash /etc/maxinet/herramientas/trafico.sh --install-cron || true
     fi
 "
 
@@ -4011,9 +4011,9 @@ run_cmd "Instalando ethtool para Ring Buffers" "$LINENO" "pkg_install ethtool"
 
 # 8. Ejecutar snapshot inicial de tráfico
 run_cmd "Ejecutando snapshot inicial de Tráfico & Consumo" "$LINENO" "
-    if [[ -f /etc/maxinet/herramientas/network_traffic.sh ]]; then
+    if [[ -f /etc/maxinet/herramientas/trafico.sh ]]; then
         mkdir -p /etc/maxinet/trafico/historial /etc/maxinet/trafico/snapshots
-        bash /etc/maxinet/herramientas/network_traffic.sh --snapshot
+        bash /etc/maxinet/herramientas/trafico.sh --snapshot
     fi
 "
 
