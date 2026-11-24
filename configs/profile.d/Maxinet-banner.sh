@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v3.1.2
+# Maxinet Network - Premium Welcome Banner v3.1.3
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -15,6 +15,7 @@ TG_GROUP=""
 if [[ -f /etc/maxinet/config.conf ]]; then
     source /etc/maxinet/config.conf
     DOMAIN="${SERVER_DOMAIN:-"$IP_LOCAL"}"
+    IP_LOCAL="${SERVER_PUB_IP:-"$IP_LOCAL"}"
     TG_CHANNEL="${TG_CHANNEL:-}"
     TG_GROUP="${TG_GROUP:-}"
 fi
@@ -39,24 +40,28 @@ C_BLANCO="\e[38;5;255m"
 C_GRIS="\e[38;5;245m"
 C_VERDE="\e[38;5;82m"
 C_ROJO="\e[38;5;203m"
-C_MORADO="\e[38;5;201m"
-C_NARANJA="\e[38;5;208m"
+C_MAGENTA="\e[38;5;205m"
 BOLD="\e[1m"
 
 # ── Utilidades (Ultra-rápidas en memoria sin subprocesos) ─────
 shopt -s extglob 2>/dev/null || true
-COLS=$(tput cols 2>/dev/null || echo 80)
+COLS="${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}"
 [[ "$COLS" =~ ^[0-9]+$ ]] || COLS=80
+[[ $COLS -lt 60 ]] && COLS=80
 
 # center: centra texto con padding instantáneo sin subshells
 center() {
     local text="$1"
-    local s="$text"
-    s="${s//$'\e'\[*([0-9;])m/}"
-    s="${s//$'\e'\[*([0-9;])K/}"
-    s="${s//$'\e'\[*([0-9;])G/}"
-    s="${s//$'\e'\[*([0-9;])[a-zA-Z]/}"
-    local pad=$(( (COLS - ${#s}) / 2 ))
+    local vis_len="${2:-}"
+    if [[ -z "$vis_len" ]]; then
+        local s="$text"
+        s="${s//$'\e'\[*([0-9;])m/}"
+        s="${s//$'\e'\[*([0-9;])K/}"
+        s="${s//$'\e'\[*([0-9;])G/}"
+        s="${s//$'\e'\[*([0-9;])[a-zA-Z]/}"
+        vis_len=${#s}
+    fi
+    local pad=$(( (COLS - vis_len) / 2 ))
     [[ $pad -lt 0 ]] && pad=0
     printf '%*s%b\n' "$pad" "" "$text"
 }
@@ -70,103 +75,105 @@ hr() {
 }
 
 # ── Panel (ancho fijo, alineación perfecta) ─────
-PW=46                      # ancho interior del panel (celdas)
-PL=$(( (COLS - PW - 2) / 2 ))   # padding izquierdo
+PW=48
+PL=$(( (COLS - PW - 2) / 2 ))
 [[ $PL -lt 0 ]] && PL=0
 
-# p_linea <contenido (sin bordes)> sin subshells
-p_linea() {
-    local content="$1"
-    local s="$content"
-    s="${s//$'\e'\[*([0-9;])m/}"
-    s="${s//$'\e'\[*([0-9;])K/}"
-    s="${s//$'\e'\[*([0-9;])G/}"
-    s="${s//$'\e'\[*([0-9;])[a-zA-Z]/}"
-    local fill=$(( PW - ${#s} ))
-    [[ $fill -lt 0 ]] && fill=0
-    printf '%*s%b%*s%b\n' "$PL" "" "${C_CIAN}${BOLD}│${C_RESET}${content}" "$fill" "" "${C_CIAN}${BOLD}│${C_RESET}"
-}
-
-# p_marco_sup / p_marco_inf
-_repeat() {
-    local out
-    printf -v out '%*s' "$2" ""
-    printf '%s' "${out// /$1}"
-}
-
 p_marco_sup() {
-    local border
-    printf -v border '%*s' "$PW" ""
-    printf '%*s%b%b%b\n' "$PL" "" "${C_CIAN}${BOLD}┌" "${C_CIAN}${border// /─}" "${C_CIAN}${BOLD}┐${C_RESET}"
+    local border; printf -v border '%*s' "$PW" ""
+    printf '%*s%b\n' "$PL" "" "${C_CIAN}${BOLD}┌${border// /─}┐${C_RESET}"
 }
 
 p_marco_inf() {
-    local border
-    printf -v border '%*s' "$PW" ""
-    printf '%*s%b%b%b\n' "$PL" "" "${C_CIAN}${BOLD}└" "${C_CIAN}${border// /─}" "${C_CIAN}${BOLD}┘${C_RESET}"
+    local border; printf -v border '%*s' "$PW" ""
+    printf '%*s%b\n' "$PL" "" "${C_CIAN}${BOLD}└${border// /─}┘${C_RESET}"
 }
 
-# p_fila <icono(1celda)> <label> <valor>
+p_cabecera() {
+    local title="$1"
+    local vis_len="${2:-28}"
+    local left_pad=$(( (PW - vis_len) / 2 ))
+    local right_pad=$(( PW - vis_len - left_pad ))
+    printf '%*s%b%*s%b%*s%b\n' \
+        "$PL" "" \
+        "${C_CIAN}${BOLD}│${C_RESET}" \
+        "$left_pad" "" \
+        "${C_BLANCO}${BOLD}${title}${C_RESET}" \
+        "$right_pad" "" \
+        "${C_CIAN}${BOLD}│${C_RESET}"
+}
+
 p_fila() {
-    local icon="$1" label="$2" valor="$3"
-    local txt="  ${C_DORADO}${icon}${C_RESET} ${C_CIAN2}${BOLD}${label}${C_RESET}"
-    local len_lbl=$(( 2 + 1 + 1 + ${#label} + 1 ))   # espacios + icono + espacio + label + espacio
+    local icon="$1" label="$2" valor="$3" val_color="${4:-$C_BLANCO}"
+    local left="  ${C_DORADO}${icon}${C_RESET} ${C_CIAN2}${BOLD}${label}${C_RESET}"
+    local len_lbl=$(( 4 + ${#label} ))
     local len_val=${#valor}
-    local dots=$(( PW - len_lbl - len_val ))
-    [[ $dots -lt 1 ]] && dots=1
-    local gap
-    printf -v gap '%*s' "$dots" ""
-    p_linea "${txt}${gap}${C_BLANCO}${BOLD}${valor}${C_RESET}"
+    local gap=$(( PW - len_lbl - len_val - 2 ))
+    [[ $gap -lt 1 ]] && gap=1
+    printf '%*s%b%b%*s%b  %b\n' \
+        "$PL" "" \
+        "${C_CIAN}${BOLD}│${C_RESET}" \
+        "$left" \
+        "$gap" "" \
+        "${val_color}${BOLD}${valor}${C_RESET}" \
+        "${C_CIAN}${BOLD}│${C_RESET}"
 }
 
 # ==================================================
 #  BANNER PRINCIPAL
 # ==================================================
 hr "═"
-center ""
-center "${C_CIAN2}${BOLD}    ███╗   ███╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗${C_RESET}"
-center "${C_CIAN}${BOLD}    ████╗ ████║██╔══██╗╚██╗██╔╝██║████╗  ██║██╔════╝╚══██╔══╝${C_RESET}"
-center "${C_CIAN}${BOLD}    ██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   ${C_RESET}"
-center "${C_AZUL}${BOLD}    ██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   ${C_RESET}"
-center "${C_AZUL}${BOLD}    ██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   ${C_RESET}"
-center "${C_AZUL2}${BOLD}    ╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═══╝╚══════╝   ╚═╝   ${C_RESET}"
-center ""
-center "${C_DORADO}${BOLD}    ──  ◆  MAXINET NETWORK  ◆  ──  ${C_RESET}"
-center "${C_AMARILLO}${BOLD}        🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}"
-center ""
+center "" 0
+
+# ASCII MAXINET (exactamente 57 columnas cada línea para centrado idéntico)
+center "${C_CIAN2}${BOLD}███╗   ███╗ █████╗ ██╗  ██╗██╗███╗   ██╗███████╗████████╗${C_RESET}" 57
+center "${C_CIAN}${BOLD}████╗ ████║██╔══██╗╚██╗██╔╝██║████╗  ██║██╔════╝╚══██╔══╝${C_RESET}" 57
+center "${C_CIAN}${BOLD}██╔████╔██║███████║ ╚███╔╝ ██║██╔██╗ ██║█████╗     ██║   ${C_RESET}" 57
+center "${C_AZUL}${BOLD}██║╚██╔╝██║██╔══██║ ██╔██╗ ██║██║╚██╗██║██╔══╝     ██║   ${C_RESET}" 57
+center "${C_AZUL}${BOLD}██║ ╚═╝ ██║██║  ██║██╔╝ ██╗██║██║ ╚████║███████╗   ██║   ${C_RESET}" 57
+center "${C_AZUL2}${BOLD}╚═╝     ╚═╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═══╝╚══════╝   ╚═╝        ${C_RESET}" 57
+
+center "" 0
+center "${C_DORADO}${BOLD}──  ◆  MAXINET NETWORK  ◆  ──${C_RESET}" 29
+center "${C_AMARILLO}${BOLD}🚀  EDICIÓN PREMIUM — 2026  🚀${C_RESET}" 30
+center "" 0
 hr "═"
-center ""
+center "" 0
 
 # ── Panel de información ──────────────────────────
 p_marco_sup
-p_linea "${C_BLANCO}${BOLD}          📊  INFORMACIÓN DEL SERVIDOR          ${C_RESET}"
+p_cabecera "📊  INFORMACIÓN DEL SERVIDOR" 28
 p_marco_inf
 p_marco_sup
 p_fila "▶" "Servidor"     "${SERVER}"
-p_fila "●" "Dominio"      "${DOMAIN}"
-p_fila "◈" "IP Pública"   "${IP_LOCAL}"
+p_fila "●" "Dominio"      "${DOMAIN}" "${C_MAGENTA}"
+p_fila "◈" "IP Pública"   "${IP_LOCAL}" "${C_MAGENTA}"
 p_fila "⚡" "Uptime"       "${UPTIME}"
 p_fila "✪" "Conectados"   "${ONLINE}"
 p_fila "◆" "Fecha"        "${FECHA}"
 p_fila "◉" "Hora"         "${HORA}"
 p_marco_inf
-center ""
+center "" 0
 
 # ── Usuario / acción ─────────────────────────────
+USER_BLOCK_W=32
+PL_USER=$(( (COLS - USER_BLOCK_W) / 2 ))
+[[ $PL_USER -lt 0 ]] && PL_USER=0
+
 if [[ $EUID -ne 0 ]]; then
-    center "${C_DORADO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}$(whoami)${C_RESET}"
-    center "${C_ROJO}${BOLD}⚠️  Advertencia${C_RESET} : ${C_AMARILLO}No eres root — ejecuta:${C_RESET} ${C_VERDE}sudo -i${C_RESET}"
+    printf '%*s%b   : %b\n' "$PL_USER" "" "${C_DORADO}${BOLD}👑 Usuario${C_RESET}" "${C_BLANCO}$(whoami)${C_RESET}"
+    printf '%*s%b   : %b %b\n' "$PL_USER" "" "${C_ROJO}${BOLD}⚠️  Aviso${C_RESET}" "${C_AMARILLO}No eres root — ejecuta:${C_RESET}" "${C_VERDE}sudo -i${C_RESET}"
 else
-    center "${C_DORADO}${BOLD}👑 Usuario${C_RESET}   : ${C_BLANCO}${BOLD}root${C_RESET}"
-    center "${C_AMARILLO}${BOLD}⚡ Comando${C_RESET}   : ${C_VERDE}Escribe:${C_RESET} ${C_BLANCO}${BOLD}menu${C_RESET}"
+    printf '%*s%b   : %b\n' "$PL_USER" "" "${C_DORADO}${BOLD}👑 Usuario${C_RESET}" "${C_BLANCO}${BOLD}root${C_RESET}"
+    printf '%*s%b   : %b %b\n' "$PL_USER" "" "${C_AMARILLO}${BOLD}⚡ Comando${C_RESET}" "${C_VERDE}Escribe:${C_RESET}" "${C_BLANCO}${BOLD}menu${C_RESET}"
 fi
-center ""
+center "" 0
 
 hr "═"
-center ""
-center "${C_VERDE}${BOLD}✨  Gracias por usar nuestros servicios  ✨${C_RESET}"
-center "${C_GRIS}─  Acceso autorizado. Conexiones monitoreadas las 24 horas.  ─${C_RESET}"
-center "${C_GRIS}─  Powered by Maxinet Network — Uso autorizado  ─${C_RESET}"
-center ""
+center "" 0
+center "${C_VERDE}${BOLD}✨  Gracias por usar nuestros servicios  ✨${C_RESET}" 41
+center "${C_GRIS}─  Acceso autorizado. Conexiones monitoreadas las 24 horas.  ─${C_RESET}" 63
+center "${C_GRIS}─  Powered by Maxinet Network — Uso autorizado  ─${C_RESET}" 49
+center "" 0
 hr "═"
 printf '\n'
