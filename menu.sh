@@ -604,9 +604,7 @@ SEL=$(nav_pick "► Opción:" \
     "🆔 ${MENU_ADDXRAY:-Crear Usuario HWID}" \
     "🚀 ${MENU_PROTOCOLS_BTN:-Protocolos}" \
     "⚡ ${MENU_ZIPVPN:-ZiVPN Manager}" \
-    "📡 ${MENU_MONITOR:-Monitor Conectados (En Vivo)}" \
-    "🚀 ${MENU_OPTIMIZER:-Optimizador de Red}" \
-    "📊 ${MENU_TRAFFIC:-Tráfico & Consumo (GB)}" \
+    "📡 ${MENU_MONITOR:-Monitor Conectados}" \
     "☁️ ${MENU_XRAY:-Xray/V2Ray}" \
     "🧰 ${MENU_TOOLS:-Herramientas}" \
     "🛠 ${MENU_UPDATE:-Update / Remover}" \
@@ -622,15 +620,13 @@ case "$SEL" in
     4)  OPCION="22" ;;   # Crear Usuario HWID
     5)  OPCION="2"  ;;   # Protocolos
     6)  OPCION="12" ;;   # ZiVPN Manager
-    7)  OPCION="10" ;;   # Monitor Conectados (En Vivo)
-    8)  OPCION="6"  ;;   # Optimizador de Red
-    9)  OPCION="5"  ;;   # Tráfico & Consumo (GB)
-    10) OPCION="11" ;;   # Xray/V2Ray
-    11) OPCION="3"  ;;   # Herramientas
-    12) OPCION="9"  ;;   # Update / Remover
-    13) OPCION="18" ;;   # Soporte
-    14) OPCION="99" ;;   # Idioma
-    15) OPCION="0"  ;;   # Salir
+    7)  OPCION="10" ;;   # Monitor Conectados
+    8)  OPCION="11" ;;   # Xray/V2Ray
+    9)  OPCION="3"  ;;   # Herramientas
+    10) OPCION="9"  ;;   # Update / Remover
+    11) OPCION="18" ;;   # Soporte
+    12) OPCION="99" ;;   # Idioma
+    13) OPCION="0"  ;;   # Salir
     0)  OPCION="0"  ;;   # ESC -> Salir
     *)  OPCION="0"  ;;   # defensivo: nunca caer en un bloque destructivo
 esac
@@ -827,28 +823,6 @@ case "$OPCION" in
         3) bash "$BASE/herramientas/seguridad.sh"; exec bash "$BASE/menu.sh" ;;
         0|4) exec bash "$BASE/menu.sh" ;;
     esac
-;;
-
-5)
-    clear
-    if [[ -f "$BASE/herramientas/network_traffic.sh" ]]; then
-        MV_FROM_MAIN=1 bash "$BASE/herramientas/network_traffic.sh"
-    else
-        echo -e "${RED}❌ network_traffic.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
-        sleep 2
-        exec bash "$BASE/menu.sh"
-    fi
-;;
-
-6)
-    clear
-    if [[ -f "$BASE/herramientas/optimizar.sh" ]]; then
-        bash "$BASE/herramientas/optimizar.sh"
-    else
-        echo -e "${RED}❌ optimizar.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
-        sleep 2
-        exec bash "$BASE/menu.sh"
-    fi
 ;;
 
 7)
