@@ -605,6 +605,7 @@ SEL=$(nav_pick "► Opción:" \
     "🚀 ${MENU_PROTOCOLS_BTN:-Protocolos}" \
     "⚡ ${MENU_ZIPVPN:-ZiVPN Manager}" \
     "📡 ${MENU_MONITOR:-Monitor Conectados}" \
+    "🚀 ${MENU_OPTIMIZER:-Optimizador de Red}" \
     "☁️ ${MENU_XRAY:-Xray/V2Ray}" \
     "🧰 ${MENU_TOOLS:-Herramientas}" \
     "🛠 ${MENU_UPDATE:-Update / Remover}" \
@@ -621,12 +622,13 @@ case "$SEL" in
     5)  OPCION="2"  ;;   # Protocolos
     6)  OPCION="12" ;;   # ZiVPN Manager
     7)  OPCION="10" ;;   # Monitor Conectados
-    8)  OPCION="11" ;;   # Xray/V2Ray
-    9)  OPCION="3"  ;;   # Herramientas
-    10) OPCION="9"  ;;   # Update / Remover
-    11) OPCION="18" ;;   # Soporte
-    12) OPCION="99" ;;   # Idioma
-    13) OPCION="0"  ;;   # Salir
+    8)  OPCION="13" ;;   # Optimizador de Red
+    9)  OPCION="11" ;;   # Xray/V2Ray
+    10) OPCION="3"  ;;   # Herramientas
+    11) OPCION="9"  ;;   # Update / Remover
+    12) OPCION="18" ;;   # Soporte
+    13) OPCION="99" ;;   # Idioma
+    14) OPCION="0"  ;;   # Salir
     0)  OPCION="0"  ;;   # ESC -> Salir
     *)  OPCION="0"  ;;   # defensivo: nunca caer en un bloque destructivo
 esac
@@ -935,7 +937,18 @@ EOF
     fi
     exec bash "$BASE/menu.sh"
 ;;
-
+ 
+13)
+    clear
+    if [[ -f "$BASE/herramientas/optimizador_abbienet.sh" ]]; then
+        bash "$BASE/herramientas/optimizador_abbienet.sh" --plus
+    else
+        echo -e "${RED}❌ optimizador_abbienet.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
+        sleep 2
+        exec bash "$BASE/menu.sh"
+    fi
+;;
+ 
 11)
     clear
     if [[ -f "$BASE/protocolos/v2ray.sh" ]]; then
