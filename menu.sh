@@ -627,8 +627,9 @@ case "$SEL" in
     10) OPCION="3"  ;;   # Herramientas
     11) OPCION="9"  ;;   # Update / Remover
     12) OPCION="18" ;;   # Soporte
-    13) OPCION="99" ;;   # Idioma
-    14) OPCION="0"  ;;   # Salir
+    13) OPCION="13" ;;   # Optimizador de Red
+    14) OPCION="99" ;;   # Idioma
+    15) OPCION="0"  ;;   # Salir
     0)  OPCION="0"  ;;   # ESC -> Salir
     *)  OPCION="0"  ;;   # defensivo: nunca caer en un bloque destructivo
 esac
@@ -936,6 +937,17 @@ EOF
         sleep 2
     fi
     exec bash "$BASE/menu.sh"
+;;
+ 
+13)
+    clear
+    if [[ -f "$BASE/herramientas/optimizador_abbienet.sh" ]]; then
+        bash "$BASE/herramientas/optimizador_abbienet.sh" --plus
+    else
+        echo -e "${RED}❌ optimizador_abbienet.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
+        sleep 2
+        exec bash "$BASE/menu.sh"
+    fi
 ;;
  
 13)

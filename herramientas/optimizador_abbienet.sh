@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #=========================================================
-#   Maxinet Network - OPTIMIZADOR DE RED v3.0.8
+#   Maxinet Network - OPTIMIZADOR DE RED v3.0.9
 #   Réplica EXACTA 100% funcional del Abbienet v7.1
 #   13 opciones independientes y funcionales
 #=========================================================
@@ -727,7 +727,7 @@ menu_principal() {
     DNS_ACTUAL=$(cat /etc/resolv.conf 2>/dev/null | grep nameserver | head -1 | awk '{print $2}' || echo "N/A")
     
     H1
-    title "🚀 MAXINET — OPTIMIZADOR DE RED v3.0.8"
+    title "🚀 MAXINET — OPTIMIZADOR DE RED v3.0.9"
     H2
     printf "${CYAN}║${WHITE}   ⚡ TCP · ${GREEN}${BBR}${RESET}    📏 MTU · ${YELLOW}${MTU_ACTUAL}${RESET}    🛡 DNS · ${WHITE}${DNS_ACTUAL}${RESET}${CYAN}    ║${RESET}\n"
     H2
