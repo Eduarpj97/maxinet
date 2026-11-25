@@ -799,19 +799,11 @@ zivpn_pintar_tabla() {
             NF >= 5 && $5 == "ok" && $3 != "" && $1 > best[$3] { best[$3] = $1 }
             END { for (k in best) print k, best[k] }' "$db")
     fi
-    cand=$(printf '%s\n%s\n' "$grupos_off" "${db_claves:-}" | awk -F'|' -v on_list="$filas_on" '
-        BEGIN {
-            n = split(on_list, arr, "\n")
-            for (i = 1; i <= n; i++) {
-                split(arr[i], f, "|")
-                if (f[1] != "") on[f[1]] = 1
-            }
-        }
-        $1 != "" && !($1 in on) && !($1 in seen) {
-            seen[$1] = 1
-            print $1
-        }
-    ' 2>/dev/null || true)
+    declare -A _ON_PASS=()
+    local _op
+    while IFS='|' read -r _op _; do
+        [[ -n "$_op" ]] && _ON_PASS["$_op"]=1
+    done <<< "$filas_on"
 
     local valid_passes=""
     local cfg="${MAXINET_ZIVPN_CONFIG:-/etc/zivpn/config.json}"
@@ -824,16 +816,28 @@ zivpn_pintar_tabla() {
     [[ -f "$lim" ]] && valid_passes+=$(cut -d: -f1 "$lim" 2>/dev/null)$'\n'
     valid_passes=$(printf '%s\n' "$valid_passes" | awk 'NF && !seen[$0]++')
 
-    # Si hay contraseñas válidas en el sistema pero cand está vacío (sin conexiones previas),
-    # incluir las configuradas para que la tabla se mantenga visible
-    if [[ -z "$cand" && -n "$valid_passes" ]]; then
-        cand="$valid_passes"
-    elif [[ -n "$valid_passes" ]]; then
-        cand=$(printf '%s\n' "$cand" | awk -v vp="$valid_passes" '
-            BEGIN { split(vp, a, "\n"); for (i in a) valid[a[i]]=1 }
-            $1 != "" && ($1 in valid) { print }
-        ')
+    declare -A _VALID_PASS=()
+    local _vp
+    if [[ -n "$valid_passes" ]]; then
+        while IFS= read -r _vp; do
+            [[ -n "$_vp" ]] && _VALID_PASS["$_vp"]=1
+        done <<< "$valid_passes"
     fi
+
+    declare -A _CAND_SEEN=()
+    cand=""
+    local _raw_cand _rc
+    _raw_cand=$(printf '%s\n%s\n%s\n' "$grupos_off" "${db_claves:-}" "${valid_passes:-}" | awk -F'|' '$1 != "" { print $1 }')
+    while IFS= read -r _rc; do
+        [[ -z "$_rc" ]] && continue
+        [[ -n "${_ON_PASS[$_rc]:-}" ]] && continue
+        [[ -n "${_CAND_SEEN[$_rc]:-}" ]] && continue
+        if [[ -n "$valid_passes" && -z "${_VALID_PASS[$_rc]:-}" ]]; then
+            continue
+        fi
+        _CAND_SEEN["$_rc"]=1
+        cand+="${_rc}"$'\n'
+    done <<< "$_raw_cand"
 
     local -A OFF_DATES=()
     if [[ -n "$db_dates" ]]; then
