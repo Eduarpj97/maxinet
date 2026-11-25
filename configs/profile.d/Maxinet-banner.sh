@@ -1,14 +1,14 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v3.1.5
+# Maxinet Network - Premium Welcome Banner v3.1.6
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
 clear
 
-# ── Datos del sistema ──────────────────────────
-SERVER=$(hostname)
-IP_LOCAL=$(hostname -I 2>/dev/null | awk '{print $1}')
+# ── Datos del sistema (mínimos subprocesos) ──────────────────────────
+SERVER="${HOSTNAME:-$(hostname 2>/dev/null)}"
+read -r IP_LOCAL _ < <(hostname -I 2>/dev/null)
 DOMAIN="-"
 TG_CHANNEL=""
 TG_GROUP=""
@@ -21,24 +21,31 @@ if [[ -f /etc/maxinet/config.conf ]]; then
     TG_CHANNEL="${TG_CHANNEL:-}"
     TG_GROUP="${TG_GROUP:-}"
 fi
-UPTIME=$(uptime -p 2>/dev/null | sed 's/up //')
-FECHA=$(date +"%d-%m-%Y")
-HORA=$(date +"%H:%M:%S")
+UPTIME=$(uptime -p 2>/dev/null)
+UPTIME="${UPTIME#up }"
+read -r FECHA HORA <<< "$(date +"%d-%m-%Y %H:%M:%S")"
 
 # ── Conexiones VPN reales (100% verificadas, excluye sesión administrativa de root) ──
-_ssh_c=$(ps -C sshd -o args= 2>/dev/null | grep "\[priv\]" | grep -vE 'sshd:[[:space:]]*root' | wc -l)
-_drop_p=$(pgrep -x dropbear 2>/dev/null | wc -l)
+_ssh_c=0
+_drop_p=0
+while read -r _pcomm _pargs; do
+    case "$_pcomm" in
+        sshd)
+            [[ "$_pargs" == *"[priv]"* && ! "$_pargs" =~ ^sshd:[[:space:]]*root ]] && (( _ssh_c++ ))
+            ;;
+        dropbear)
+            (( _drop_p++ ))
+            ;;
+    esac
+done < <(ps -eo comm=,args= 2>/dev/null)
 _drop_c=$(( _drop_p > 1 ? _drop_p - 1 : 0 ))
+
 _udp_c=0
-if [[ -r /proc/net/nf_conntrack ]]; then
-    _udp_c=$(grep -c 'dport=36712' /proc/net/nf_conntrack 2>/dev/null || echo 0)
-elif command -v conntrack >/dev/null 2>&1; then
-    _udp_c=$(conntrack -L -p udp --dport 36712 2>/dev/null | grep -cv UNREPLIED || echo 0)
-fi
 _zi_c=0
 if [[ -r /proc/net/nf_conntrack ]]; then
-    _zi_c=$(grep -c 'dport=5667' /proc/net/nf_conntrack 2>/dev/null || echo 0)
+    read -r _udp_c _zi_c < <(awk '/dport=36712/{u++} /dport=5667/{z++} END{print u+0, z+0}' /proc/net/nf_conntrack 2>/dev/null)
 elif command -v conntrack >/dev/null 2>&1; then
+    _udp_c=$(conntrack -L -p udp --dport 36712 2>/dev/null | grep -cv UNREPLIED || echo 0)
     _zi_c=$(conntrack -L -p udp --dport 5667 2>/dev/null | grep -cv UNREPLIED || echo 0)
 fi
 _bad_c=0
@@ -46,10 +53,6 @@ if command -v ss >/dev/null 2>&1; then
     _bad_c=$(ss -Htn sport = :7200 state established 2>/dev/null | wc -l)
 fi
 ONLINE=$(( _ssh_c + _drop_c + _udp_c + _zi_c + _bad_c ))
-
-# ── Info de red simplificada ──
-IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}')
-IFACE="${IFACE:-eth0}"
 
 # ── Colores (ANSI 256) ──────────────────────────
 C_RESET="\e[0m"
@@ -68,7 +71,7 @@ BOLD="\e[1m"
 
 # ── Utilidades (Ultra-rápidas en memoria sin subprocesos) ─────
 shopt -s extglob 2>/dev/null || true
-COLS="${COLUMNS:-$(tput cols 2>/dev/null || echo 80)}"
+COLS="${COLUMNS:-80}"
 [[ "$COLS" =~ ^[0-9]+$ ]] || COLS=80
 [[ $COLS -lt 60 ]] && COLS=80
 
@@ -99,8 +102,7 @@ hr() {
 
 # ── Panel (ancho fijo, alineación perfecta) ─────
 PW=48
-PL=$(( (COLS - PW - 2) / 2 ))
-[[ $PL -lt 0 ]] && PL=0
+PL=1
 
 p_marco_sup() {
     local border; printf -v border '%*s' "$PW" ""

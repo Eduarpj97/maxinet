@@ -418,12 +418,7 @@ mv_panel_width(){
 }
 
 mv_panel_pad(){
-    local C PW PL
-    C=$(mv_cols)
-    PW=$(mv_panel_width)
-    PL=$(( (C - PW - 2) / 2 ))
-    (( PL < 0 )) && PL=0
-    echo "$PL"
+    echo 0
 }
 
 mv_panel_top(){

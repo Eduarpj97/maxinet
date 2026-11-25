@@ -32,16 +32,38 @@ LOG_FILE="/var/log/maxinet-limpieza.log"
 CYAN="${MV_CYN:-\e[1;96m}"; GREEN="${MV_GRN:-\e[1;92m}"; YELLOW="${MV_YLW:-\e[1;93m}"; RED="${MV_RED:-\e[1;91m}"
 BLUE="${MV_BLU:-\e[1;94m}"; WHITE="${MV_WHT:-\e[1;97m}"; GRAY="${MV_DIM:-\e[1;90m}"; GOLD="${MV_GLD:-\e[1;93m}"; RESET="${MV_R:-\e[0m}"
 
-W=70
+W=58
 H1() { printf "${CYAN}╔"; printf '═%.0s' $(seq 1 $W); printf "╗${RESET}\n"; }
 H2() { printf "${CYAN}╠"; printf '═%.0s' $(seq 1 $W); printf "╣${RESET}\n"; }
 H3() { printf "${CYAN}╚"; printf '═%.0s' $(seq 1 $W); printf "╝${RESET}\n"; }
 
+_vis_len() {
+    local txt="$1"
+    if declare -F mv_w >/dev/null 2>&1; then
+        mv_w "$txt"
+    else
+        local clean
+        clean=$(printf '%b' "$txt" | sed -r 's/\x1B\[[0-9;]*[mK]//g')
+        echo "${#clean}"
+    fi
+}
+
 title() {
-    local T="$1" LEN=${#1} PAD
-    PAD=$(( (W - 2 - LEN) / 2 ))
+    local T="$1" LEN PAD RPAD
+    LEN=$(_vis_len "$T")
+    PAD=$(( (W - LEN) / 2 ))
     [[ $PAD -lt 0 ]] && PAD=0
-    printf "${CYAN}║${GOLD}%*s%s%*s${RESET}${CYAN} ║${RESET}\n" "$PAD" "" "$T" "$((W - 2 - LEN - PAD))" ""
+    RPAD=$(( W - LEN - PAD ))
+    [[ $RPAD -lt 0 ]] && RPAD=0
+    printf "${CYAN}║${GOLD}%*s%s%*s${RESET}${CYAN}║${RESET}\n" "$PAD" "" "$T" "$RPAD" ""
+}
+
+row() {
+    local txt="$1" vis pad
+    vis=$(_vis_len "$txt")
+    pad=$(( W - vis ))
+    (( pad < 0 )) && pad=0
+    printf "${CYAN}║${RESET}%b%*s${CYAN}║${RESET}\n" "$txt" "$pad" ""
 }
 
 bar() {
@@ -149,7 +171,7 @@ perfil_carrier_grade() {
     title "⚡ PERFIL CARRIER GRADE (BBR + ZERO-COPY)"
     H2
     
-    printf "${CYAN}║${WHITE}   Aplicando perfil Carrier Grade...${RESET}${CYAN}              ║${RESET}\n"
+    row "${WHITE}   Aplicando perfil Carrier Grade...${RESET}"
     echo ""
     
     # BBR + Zero-Copy
@@ -164,11 +186,11 @@ perfil_carrier_grade() {
     MTU=$(cat /sys/class/net/$(get_iface)/mtu 2>/dev/null)
     
     H2
-    printf "${CYAN}║${RESET}   ✅ Congestión TCP : ${GREEN}${BBR}${RESET} (BBR + Zero-Copy)       ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Zero-Copy      : ${GREEN}ACTIVO${RESET} (tcp_notsent_lowat=131072) ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ MTU            : ${GREEN}${MTU}${RESET}                               ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Buffers TCP    : ${GREEN}64 MB${RESET} (rmem/wmem)                ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Somaxconn      : ${GREEN}8192${RESET}                                ║${RESET}\n"
+    row "   ✅ Congestión TCP : ${GREEN}${BBR}${RESET} (BBR + Zero-Copy)"
+    row "   ✅ Zero-Copy      : ${GREEN}ACTIVO${RESET} (lowat=131072)"
+    row "   ✅ MTU            : ${GREEN}${MTU}${RESET}"
+    row "   ✅ Buffers TCP    : ${GREEN}64 MB${RESET} (rmem/wmem)"
+    row "   ✅ Somaxconn      : ${GREEN}8192${RESET}"
     
     sed -i 's/^OPTIMIZAR=.*/OPTIMIZAR=ON/' "$CONFIG" 2>/dev/null
     grep -q '^OPTIMIZAR=' "$CONFIG" || echo 'OPTIMIZAR=ON' >> "$CONFIG"
@@ -188,7 +210,7 @@ perfil_turbo_streaming() {
     title "🎬 TURBO STREAMING & REDES"
     H2
     
-    printf "${CYAN}║${WHITE}   Optimizando para YouTube, TikTok, WhatsApp...${RESET}${CYAN}  ║${RESET}\n"
+    row "${WHITE}   Optimizando para YouTube, TikTok, WhatsApp...${RESET}"
     echo ""
     
     # Aplicar sysctl base + QoS para streaming
@@ -206,11 +228,11 @@ perfil_turbo_streaming() {
     sysctl -w net.core.wmem_max=67108864 >/dev/null 2>&1
     
     H2
-    printf "${CYAN}║${RESET}   ✅ YouTube/TikTok  : ${GREEN}OPTIMIZADO${RESET} (buffer optimizado)   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ WhatsApp/Video  : ${GREEN}PRIORIDAD ALTA${RESET} (QoS activo)        ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ TCP Fast Open   : ${GREEN}ACTIVO${RESET} (3)                        ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ F-RTO           : ${GREEN}ACTIVO${RESET} (retransmisión rápida)   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Early Retrans   : ${GREEN}ACTIVO${RESET} (3)                        ║${RESET}\n"
+    row "   ✅ YouTube/TikTok  : ${GREEN}OPTIMIZADO${RESET} (buffer optimizado)"
+    row "   ✅ WhatsApp/Video  : ${GREEN}PRIORIDAD ALTA${RESET} (QoS activo)"
+    row "   ✅ TCP Fast Open   : ${GREEN}ACTIVO${RESET} (3)"
+    row "   ✅ F-RTO           : ${GREEN}ACTIVO${RESET} (retransmisión rápida)"
+    row "   ✅ Early Retrans   : ${GREEN}ACTIVO${RESET} (3)"
     
     H3
     echo ""
@@ -227,7 +249,7 @@ perfil_movil_colombia() {
     title "📱 PERFIL MÓVIL COLOMBIA"
     H2
     
-    printf "${CYAN}║${WHITE}   Operadores: ${GREEN}Tigo Claro Movistar WOM${RESET}${CYAN}          ║${RESET}\n"
+    row "${WHITE}   Operadores: ${GREEN}Tigo Claro Movistar WOM${RESET}"
     echo ""
     
     aplicar_sysctl
@@ -250,10 +272,10 @@ perfil_movil_colombia() {
     MTU_ACTUAL=$(cat /sys/class/net/$IFACE_NET/mtu 2>/dev/null)
     
     H2
-    printf "${CYAN}║${RESET}   ✅ Tigo/Claro      : ${GREEN}OPTIMIZADO${RESET} (MTU 1384 + UDP)   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Movistar        : ${GREEN}OPTIMIZADO${RESET} (latencia reducida)  ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ WOM             : ${GREEN}OPTIMIZADO${RESET} (buffers móviles)   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ MTU aplicado    : ${GREEN}${MTU_ACTUAL}${RESET}                                 ║${RESET}\n"
+    row "   ✅ Tigo/Claro      : ${GREEN}OPTIMIZADO${RESET} (MTU 1384 + UDP)"
+    row "   ✅ Movistar        : ${GREEN}OPTIMIZADO${RESET} (latencia reducida)"
+    row "   ✅ WOM             : ${GREEN}OPTIMIZADO${RESET} (buffers móviles)"
+    row "   ✅ MTU aplicado    : ${GREEN}${MTU_ACTUAL}${RESET}"
     
     H3
     echo ""
@@ -270,7 +292,7 @@ perfil_oracle_colombia() {
     title "🇨🇴 PERFIL ORACLE COLOMBIA 2026 ⭐"
     H2
     
-    printf "${CYAN}║${WHITE}   MTU intacto • Optimizado para Oracle Cloud Colombia${RESET}${CYAN}║${RESET}\n"
+    row "${WHITE}   MTU intacto • Optimizado para Oracle Cloud Colombia${RESET}"
     echo ""
     
     aplicar_sysctl
@@ -290,11 +312,11 @@ perfil_oracle_colombia() {
     sysctl -w net.ipv4.tcp_keepalive_probes=10 >/dev/null 2>&1
     
     H2
-    printf "${CYAN}║${RESET}   ✅ MTU intacto     : ${GREEN}1500${RESET} (sin fragmentación)         ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Pacing BBR      : ${GREEN}OPTIMIZADO${RESET} (ratio optimizado)      ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Keepalive       : ${GREEN}600s${RESET} (conexiones persistentes)  ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Overflow        : ${GREEN}PROTEGIDO${RESET} (sin abortar)             ║${RESET}\n"
-    printf "${CYAN}║${GOLD}   ⭐ Perfil Oracle Colombia 2026 ACTIVO${RESET}${CYAN}        ║${RESET}\n"
+    row "   ✅ MTU intacto     : ${GREEN}1500${RESET} (sin fragmentación)"
+    row "   ✅ Pacing BBR      : ${GREEN}OPTIMIZADO${RESET} (ratio optimizado)"
+    row "   ✅ Keepalive       : ${GREEN}600s${RESET} (conexiones persistentes)"
+    row "   ✅ Overflow        : ${GREEN}PROTEGIDO${RESET} (sin abortar)"
+    row "${GOLD}   ⭐ Perfil Oracle Colombia 2026 ACTIVO${RESET}"
     
     H3
     echo ""
@@ -320,7 +342,7 @@ buffers_socket_manual() {
     [[ "$CUR_RX" -le 0 ]] && CUR_RX=64
     [[ "$CUR_TX" -le 0 ]] && CUR_TX=64
     
-    printf "${CYAN}║${RESET}   ${WHITE}Actual: RX ${YELLOW}${CUR_RX} MB${RESET}  TX ${YELLOW}${CUR_TX} MB${RESET}${CYAN}     ║${RESET}\n"
+    row "   ${WHITE}Actual: RX ${YELLOW}${CUR_RX} MB${RESET}  TX ${YELLOW}${CUR_TX} MB${RESET}"
     H2
     
     echo ""
@@ -351,9 +373,9 @@ buffers_socket_manual() {
     ACT_TX=$(awk '{printf "%.0f", $3/1048576}' /proc/sys/net/ipv4/tcp_wmem 2>/dev/null)
     
     H2
-    printf "${CYAN}║${RESET}   ✅ Buffer RX aplicado: ${GREEN}${ACT_RX} MB${RESET}                      ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Buffer TX aplicado: ${GREEN}${ACT_TX} MB${RESET}                      ║${RESET}\n"
-    printf "${CYAN}║${GREEN}   Persistido en /etc/sysctl.d/99-maxinet.conf${RESET}${CYAN}   ║${RESET}\n"
+    row "   ✅ Buffer RX aplicado: ${GREEN}${ACT_RX} MB${RESET}"
+    row "   ✅ Buffer TX aplicado: ${GREEN}${ACT_TX} MB${RESET}"
+    row "${GREEN}   Persistido en /etc/sysctl.d/99-maxinet.conf${RESET}"
     
     H3
     echo ""
@@ -377,8 +399,8 @@ ring_buffers_ethtool() {
     CUR_RX=$(ethtool -g "$IFACE_NET" 2>/dev/null | grep -A1 "RX:" | tail -1 | awk '{print $1}' || echo "4096")
     CUR_TX=$(ethtool -g "$IFACE_NET" 2>/dev/null | grep -A1 "TX:" | tail -1 | awk '{print $1}' || echo "4096")
     
-    printf "${CYAN}║${RESET}   Interfaz: ${WHITE}${IFACE_NET}${RESET}${CYAN}                              ║${RESET}\n"
-    printf "${CYAN}║${RESET}   Actual RX: ${YELLOW}${CUR_RX}${RESET}  TX: ${YELLOW}${CUR_TX}${RESET}${CYAN}       ║${RESET}\n"
+    row "   Interfaz: ${WHITE}${IFACE_NET}${RESET}"
+    row "   Actual RX: ${YELLOW}${CUR_RX}${RESET}  TX: ${YELLOW}${CUR_TX}${RESET}"
     H2
     
     echo ""
@@ -400,9 +422,9 @@ ring_buffers_ethtool() {
     NEW_TX=$(ethtool -g "$IFACE_NET" 2>/dev/null | grep -A1 "TX:" | tail -1 | awk '{print $1}' || echo "$RING_TX")
     
     H2
-    printf "${CYAN}║${RESET}   ✅ Ring Buffer RX: ${GREEN}${NEW_RX}${RESET}                              ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Ring Buffer TX: ${GREEN}${NEW_TX}${RESET}                              ║${RESET}\n"
-    printf "${CYAN}║${GREEN}   Cambios aplicados en caliente via ethtool${RESET}${CYAN}   ║${RESET}\n"
+    row "   ✅ Ring Buffer RX: ${GREEN}${NEW_RX}${RESET}"
+    row "   ✅ Ring Buffer TX: ${GREEN}${NEW_TX}${RESET}"
+    row "${GREEN}   Cambios aplicados en caliente via ethtool${RESET}"
     
     H3
     echo ""
@@ -419,7 +441,7 @@ buffers_zivpn_udp() {
     title "📦 BUFFERS ZIVPN / UDP CUSTOM"
     H2
     
-    printf "${CYAN}║${WHITE}   Optimizando buffers para protocolos UDP...${RESET}${CYAN}  ║${RESET}\n"
+    row "${WHITE}   Optimizando buffers para protocolos UDP...${RESET}"
     echo ""
     
     # Optimizar buffers UDP para ZiVPN y UDP Custom
@@ -436,10 +458,10 @@ buffers_zivpn_udp() {
     sysctl -w net.ipv4.udp_wmem_min=8192 >/dev/null 2>&1
     
     H2
-    printf "${CYAN}║${RESET}   ✅ UDP rmem/wmem max : ${GREEN}64 MB${RESET}                        ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ UDP rmem/wmem default: ${GREEN}64 MB${RESET}                     ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ UDP mem buffers   : ${GREEN}64/128/256 KB${RESET}                   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ ZiVPN/UDP Custom  : ${GREEN}OPTIMIZADO${RESET}                     ║${RESET}\n"
+    row "   ✅ UDP rmem/wmem max    : ${GREEN}64 MB${RESET}"
+    row "   ✅ UDP rmem/wmem default: ${GREEN}64 MB${RESET}"
+    row "   ✅ UDP mem buffers      : ${GREEN}64/128/256 KB${RESET}"
+    row "   ✅ ZiVPN/UDP Custom     : ${GREEN}OPTIMIZADO${RESET}"
     
     H3
     echo ""
@@ -456,7 +478,7 @@ optimizacion_turbo_auto() {
     title "🚀 OPTIMIZACIÓN TURBO AUTO-CALIBRACIÓN"
     H2
     
-    printf "${CYAN}║${WHITE}   Analizando hardware y red...${RESET}${CYAN}              ║${RESET}\n"
+    row "${WHITE}   Analizando hardware y red...${RESET}"
     echo ""
     
     # Detectar CPU cores
@@ -465,8 +487,8 @@ optimizacion_turbo_auto() {
     local IFACE_NET=$(get_iface)
     local MTU_ACTUAL=$(cat /sys/class/net/$(get_iface)/mtu 2>/dev/null)
     
-    printf "${CYAN}║${RESET}   CPU Cores: ${WHITE}${CORES}${RESET}  RAM: ${WHITE}${RAM_TOTAL} MB${RESET}${CYAN}    ║${RESET}\n"
-    printf "${CYAN}║${RESET}   Interfaz: ${WHITE}${IFACE_NET}${RESET}  MTU: ${WHITE}${MTU_ACTUAL}${RESET}${CYAN}     ║${RESET}\n"
+    row "   CPU Cores: ${WHITE}${CORES}${RESET}  RAM: ${WHITE}${RAM_TOTAL} MB${RESET}"
+    row "   Interfaz: ${WHITE}${IFACE_NET}${RESET}  MTU: ${WHITE}${MTU_ACTUAL}${RESET}"
     echo ""
     
     # Auto-calibración basada en hardware
@@ -486,7 +508,7 @@ optimizacion_turbo_auto() {
         MTU_OPT=1384
     fi
     
-    printf "${CYAN}║${WHITE}   Auto-calibración: Buffers ${YELLOW}${BUF_MB} MB${RESET} MTU ${YELLOW}${MTU_OPT}${RESET}${CYAN} ║${RESET}\n"
+    row "${WHITE}   Auto-calibración: Buffers ${YELLOW}${BUF_MB} MB${RESET} MTU ${YELLOW}${MTU_OPT}${RESET}"
     sleep 1
     
     # Aplicar calibración
@@ -499,10 +521,10 @@ optimizacion_turbo_auto() {
     aplicar_sysctl
     
     H2
-    printf "${CYAN}║${GREEN}   ✅ Auto-calibración completada${RESET}${CYAN}                  ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Buffers: ${GREEN}${BUF_MB} MB${RESET}  MTU: ${GREEN}${MTU_OPT}${RESET}                    ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ BBR + Zero-Copy + QoS: ${GREEN}ACTIVO${RESET}                   ║${RESET}\n"
-    printf "${CYAN}║${GREEN}   ✅ Turbo Auto-Calibración: COMPLETADA${RESET}${CYAN}        ║${RESET}\n"
+    row "${GREEN}   ✅ Auto-calibración completada${RESET}"
+    row "   ✅ Buffers: ${GREEN}${BUF_MB} MB${RESET}  MTU: ${GREEN}${MTU_OPT}${RESET}"
+    row "   ✅ BBR + Zero-Copy + QoS: ${GREEN}ACTIVO${RESET}"
+    row "${GREEN}   ✅ Turbo Auto-Calibración: COMPLETADA${RESET}"
     
     H3
     echo ""
@@ -522,7 +544,7 @@ configurar_mtu_manual() {
     local IFACE_NET=$(get_iface)
     local MTU_ACTUAL=$(cat /sys/class/net/$IFACE_NET/mtu 2>/dev/null)
     
-    printf "${CYAN}║${RESET}   Interfaz: ${WHITE}${IFACE_NET}${RESET}  MTU actual: ${YELLOW}${MTU_ACTUAL}${RESET}${CYAN} ║${RESET}\n"
+    row "   Interfaz: ${WHITE}${IFACE_NET}${RESET}  MTU actual: ${YELLOW}${MTU_ACTUAL}${RESET}"
     H2
     echo ""
     
@@ -538,8 +560,8 @@ configurar_mtu_manual() {
     MTU_NUEVO_ACTUAL=$(cat /sys/class/net/$IFACE_NET/mtu 2>/dev/null)
     
     H2
-    printf "${CYAN}║${RESET}   ✅ MTU anterior: ${YELLOW}${MTU_ACTUAL}${RESET}  →  Nuevo: ${GREEN}${MTU_NUEVO_ACTUAL}${RESET}  ║${RESET}\n"
-    printf "${CYAN}║${GREEN}   Cambio aplicado en caliente${RESET}${CYAN}                ║${RESET}\n"
+    row "   ✅ MTU anterior: ${YELLOW}${MTU_ACTUAL}${RESET}  →  Nuevo: ${GREEN}${MTU_NUEVO_ACTUAL}${RESET}"
+    row "${GREEN}   Cambio aplicado en caliente${RESET}"
     
     H3
     echo ""
@@ -559,15 +581,15 @@ elegir_dns() {
     local DNS_ACTUAL
     DNS_ACTUAL=$(cat /etc/resolv.conf 2>/dev/null | grep nameserver | head -1 | awk '{print $2}' || echo "No detectado")
     
-    printf "${CYAN}║${RESET}   DNS actual: ${WHITE}${DNS_ACTUAL}${RESET}${CYAN}                  ║${RESET}\n"
+    row "   DNS actual: ${WHITE}${DNS_ACTUAL}${RESET}"
     H2
-    printf "${CYAN}║${RESET}   ${GREEN}[1]${WHITE} Cloudflare     ${GRAY}(1.1.1.1 / 1.0.0.1)${RESET}${CYAN}        ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[2]${WHITE} Google         ${GRAY}(8.8.8.8 / 8.8.4.4)${RESET}${CYAN}         ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[3]${WHITE} OpenDNS        ${GRAY}(208.67.222.222 / 208.67.220.220)${CYAN}  ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[4]${WHITE} Quad9          ${GRAY}(9.9.9.9 / 149.112.112.112)${CYAN}    ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[5]${WHITE} AdGuard        ${GRAY}(94.140.14.14 / 94.140.15.15)${CYAN}   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[6]${WHITE} Personalizado  ${GRAY}(IP manual)${RESET}${CYAN}               ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${RED}[0]${WHITE} Volver${RESET}${CYAN}                                    ║${RESET}\n"
+    row "   ${GREEN}[1]${WHITE} Cloudflare     ${GRAY}(1.1.1.1 / 1.0.0.1)${RESET}"
+    row "   ${GREEN}[2]${WHITE} Google         ${GRAY}(8.8.8.8 / 8.8.4.4)${RESET}"
+    row "   ${GREEN}[3]${WHITE} OpenDNS        ${GRAY}(208.67.222.222 / 208.67.220.220)${RESET}"
+    row "   ${GREEN}[4]${WHITE} Quad9          ${GRAY}(9.9.9.9 / 149.112.112.112)${RESET}"
+    row "   ${GREEN}[5]${WHITE} AdGuard        ${GRAY}(94.140.14.14 / 94.140.15.15)${RESET}"
+    row "   ${GREEN}[6]${WHITE} Personalizado  ${GRAY}(IP manual)${RESET}"
+    row "   ${RED}[0]${WHITE} Volver${RESET}"
     H3
     echo ""
     
@@ -595,8 +617,8 @@ nameserver $DNS2
 EOF
     
     H2
-    printf "${CYAN}║${RESET}   ✅ DNS cambiado a: ${GREEN}${NOMBRE}${RESET}              ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ✅ Primario: ${WHITE}${DNS1}${RESET}  Secundario: ${WHITE}${DNS2}${RESET}  ║${RESET}\n"
+    row "   ✅ DNS cambiado a: ${GREEN}${NOMBRE}${RESET}"
+    row "   ✅ Primario: ${WHITE}${DNS1}${RESET}  Secundario: ${WHITE}${DNS2}${RESET}"
     
     H3
     echo ""
@@ -613,38 +635,38 @@ diagnostico_video_velocidad() {
     title "🩺 DIAGNÓSTICO DE VIDEO & VELOCIDAD"
     H2
     
-    printf "${CYAN}║${WHITE}   Ejecutando pruebas...${RESET}${CYAN}                      ║${RESET}\n"
+    row "${WHITE}   Ejecutando pruebas...${RESET}"
     echo ""
     
     # Test 1: Velocidad de descarga (fast.com simulado)
-    printf "${CYAN}║${WHITE}   [1/4] Velocidad de descarga...${RESET}${CYAN}             ║${RESET}\n"
+    row "${WHITE}   [1/4] Velocidad de descarga...${RESET}"
     local DL_SPEED
     DL_SPEED=$(timeout 10 curl -s -w "%{speed_download}" -o /dev/null "http://speedtest.tele2.net/10MB.zip" 2>/dev/null | awk '{printf "%.1f", $1/1024/1024*8}' || echo "0")
     [[ -z "$DL_SPEED" || "$DL_SPEED" == "0" ]] && DL_SPEED="N/A"
     
     # Test 2: Velocidad de subida
-    printf "${CYAN}║${WHITE}   [2/4] Velocidad de subida...${RESET}${CYAN}              ║${RESET}\n"
+    row "${WHITE}   [2/4] Velocidad de subida...${RESET}"
     local UL_SPEED
     UL_SPEED=$(timeout 10 curl -s -w "%{speed_upload}" -o /dev/null --data-binary @/dev/zero -H "Content-Type: application/octet-stream" "http://httpbin.org/post" 2>/dev/null | awk '{printf "%.1f", $1/1024/1024*8}' || echo "0")
     [[ -z "$UL_SPEED" || "$UL_SPEED" == "0" ]] && UL_SPEED="N/A"
     
     # Test 3: Latencia a Google/Cloudflare
-    printf "${CYAN}║${WHITE}   [3/4] Latencia (ping)...${RESET}${CYAN}               ║${RESET}\n"
+    row "${WHITE}   [3/4] Latencia (ping)...${RESET}"
     local PING_G PING_C
     PING_G=$(timeout 3 ping -c 3 8.8.8.8 2>/dev/null | tail -1 | awk -F'/' '{print $5}' | cut -d'.' -f1 || echo "N/A")
     PING_C=$(timeout 3 ping -c 3 1.1.1.1 2>/dev/null | tail -1 | awk -F'/' '{print $5}' | cut -d'.' -f1 || echo "N/A")
     
     # Test 4: Bufferbloat (test de latencia bajo carga)
-    printf "${CYAN}║${WHITE}   [4/4] Bufferbloat test...${RESET}${CYAN}              ║${RESET}\n"
+    row "${WHITE}   [4/4] Bufferbloat test...${RESET}"
     local BLOAT
     BLOAT=$(timeout 5 ping -c 5 8.8.8.8 -i 0.2 2>/dev/null | tail -1 | awk -F'/' '{print $6}' | cut -d'.' -f1 || echo "N/A")
     [[ -z "$BLOAT" ]] && BLOAT="N/A"
     
     H2
-    printf "${CYAN}║${RESET}   ⬇ Descarga: ${GREEN}${DL_SPEED} Mbps${RESET}                                    ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ⬆ Subida:   ${GREEN}${UL_SPEED} Mbps${RESET}                                    ║${RESET}\n"
-    printf "${CYAN}║${RESET}   📍 Latencia Google: ${GREEN}${PING_G} ms${RESET}  Cloudflare: ${GREEN}${PING_C} ms${RESET} ║${RESET}\n"
-    printf "${CYAN}║${RESET}   📊 Bufferbloat: ${GREEN}${BLOAT} ms${RESET}                                 ║${RESET}\n"
+    row "   ⬇ Descarga: ${GREEN}${DL_SPEED} Mbps${RESET}"
+    row "   ⬆ Subida:   ${GREEN}${UL_SPEED} Mbps${RESET}"
+    row "   📍 Ping Google: ${GREEN}${PING_G} ms${RESET}  CF: ${GREEN}${PING_C} ms${RESET}"
+    row "   📊 Bufferbloat: ${GREEN}${BLOAT} ms${RESET}"
     
     H3
     echo ""
@@ -661,24 +683,24 @@ warp_smart_exit() {
     title "☁️ WARP SMART EXIT"
     H2
     
-    printf "${CYAN}║${WHITE}   WARP Smart Exit - Bypass throttling carrier${RESET}${CYAN}  ║${RESET}\n"
+    row "${WHITE}   WARP Smart Exit - Bypass throttling carrier${RESET}"
     echo ""
     
     # Verificar si WARP está instalado
     if command -v warp-cli >/dev/null 2>&1; then
-        printf "${CYAN}║${GREEN}   ✅ WARP CLI detectado${RESET}${CYAN}                       ║${RESET}\n"
+        row "${GREEN}   ✅ WARP CLI detectado${RESET}"
         
         # Verificar estado
         local WARP_STATUS
         WARP_STATUS=$(warp-cli status 2>/dev/null | head -1 || echo "Unknown")
         
-        printf "${CYAN}║${WHITE}   Estado: ${WHITE}${WARP_STATUS}${RESET}${CYAN}                   ║${RESET}\n"
+        row "${WHITE}   Estado: ${WARP_STATUS}${RESET}"
         echo ""
-        printf "${CYAN}║${RESET}   ${GREEN}[1]${WHITE} Conectar WARP${RESET}${CYAN}                             ║${RESET}\n"
-        printf "${CYAN}║${RESET}   ${GREEN}[2]${WHITE} Desconectar WARP${RESET}${CYAN}                        ║${RESET}\n"
-        printf "${CYAN}║${RESET}   ${GREEN}[3]${WHITE} Modo WARP Smart Exit (proxy)${RESET}${CYAN}            ║${RESET}\n"
-        printf "${CYAN}║${RESET}   ${GREEN}[4]${WHITE} Modo WARP Full (tunnel)${RESET}${CYAN}               ║${RESET}\n"
-        printf "${CYAN}║${RESET}   ${RED}[0]${WHITE} Volver${RESET}${CYAN}                                    ║${RESET}\n"
+        row "   ${GREEN}[1]${WHITE} Conectar WARP${RESET}"
+        row "   ${GREEN}[2]${WHITE} Desconectar WARP${RESET}"
+        row "   ${GREEN}[3]${WHITE} Modo WARP Smart Exit (proxy)${RESET}"
+        row "   ${GREEN}[4]${WHITE} Modo WARP Full (tunnel)${RESET}"
+        row "   ${RED}[0]${WHITE} Volver${RESET}"
         H3
         echo ""
         
@@ -692,15 +714,15 @@ warp_smart_exit() {
             *) menu_principal; return ;;
         esac
     else
-        printf "${CYAN}║${YELLOW}   ⚠ WARP CLI no instalado${RESET}${CYAN}                   ║${RESET}\n"
+        row "${YELLOW}   ⚠ WARP CLI no instalado${RESET}"
         echo ""
-        printf "${CYAN}║${RESET}   ${GREEN}[1]${WHITE} Instalar WARP CLI (oficial)${RESET}${CYAN}           ║${RESET}\n"
-        printf "${CYAN}║${RESET}   ${RED}[0]${WHITE} Volver${RESET}${CYAN}                                    ║${RESET}\n"
+        row "   ${GREEN}[1]${WHITE} Instalar WARP CLI (oficial)${RESET}"
+        row "   ${RED}[0]${WHITE} Volver${RESET}"
         H3
         echo ""
         read -rp "$(trx '   ► Opción: ')" WARP_INST
         if [[ "$WARP_INST" == "1" ]]; then
-            printf "${CYAN}║${WHITE}   Instalando WARP CLI...${RESET}${CYAN}              ║${RESET}\n"
+            row "${WHITE}   Instalando WARP CLI...${RESET}"
             curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg | gpg --dearmor -o /usr/share/keyrings/cloudflare-warp.gpg 2>/dev/null
             echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" > /etc/apt/sources.list.d/cloudflare-client.list 2>/dev/null
             apt update >/dev/null 2>&1 && apt install -y cloudflare-warp >/dev/null 2>&1
@@ -727,33 +749,33 @@ menu_principal() {
     DNS_ACTUAL=$(cat /etc/resolv.conf 2>/dev/null | grep nameserver | head -1 | awk '{print $2}' || echo "N/A")
     
     H1
-    title "🚀 MAXINET — OPTIMIZADOR DE RED v3.1.1"
+    title "🚀 MAXINET — OPTIMIZADOR DE RED v3.1.6"
     H2
-    printf "${CYAN}║${WHITE}   ⚡ TCP · ${GREEN}${BBR}${RESET}    📏 MTU · ${YELLOW}${MTU_ACTUAL}${RESET}    🛡 DNS · ${WHITE}${DNS_ACTUAL}${RESET}${CYAN}    ║${RESET}\n"
+    row "   ⚡ TCP · ${GREEN}${BBR}${RESET}   📏 MTU · ${YELLOW}${MTU_ACTUAL}${RESET}   🛡 DNS · ${WHITE}${DNS_ACTUAL}${RESET}"
     H2
-    printf "${CYAN}║${WHITE}   ▸ PERFILES DE RENDIMIENTO${RESET}${CYAN}                            ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[01]${WHITE} ⚡ Perfil Carrier Grade (BBR + Zero-Copy)${RESET}${CYAN}     ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[02]${WHITE} 🎬 Turbo Streaming & Redes (YouTube, TikTok, WhatsApp)${RESET}${CYAN}║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[07]${WHITE} 📱 Perfil Móvil Colombia (Tigo/Claro/Movistar/WOM)${RESET}${CYAN} ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[10]${WHITE} 🇨🇴 Perfil Oracle Colombia 2026 — MTU intacto ⭐${RESET}${CYAN}║${RESET}\n"
+    row "${WHITE}   ▸ PERFILES DE RENDIMIENTO${RESET}"
+    row "   ${GREEN}[01]${WHITE} ⚡ Perfil Carrier Grade (BBR + Zero-Copy)${RESET}"
+    row "   ${GREEN}[02]${WHITE} 🎬 Turbo Streaming (YT, TikTok, WhatsApp)${RESET}"
+    row "   ${GREEN}[07]${WHITE} 📱 Perfil Móvil (Tigo/Claro/Movistar/WOM)${RESET}"
+    row "   ${GREEN}[10]${WHITE} 🇨🇴 Perfil Oracle Colombia 2026 — MTU intacto ⭐${RESET}"
     H2
-    printf "${CYAN}║${WHITE}   ▸ BUFFERS Y CALIBRACIÓN${RESET}${CYAN}                               ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[03]${WHITE} 🎛️ Buffers de Socket (MANUAL, MB)${RESET}${CYAN}          ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[04]${WHITE} ⚙️ Personalizar Ring Buffers RX / TX (ethtool)${RESET}${CYAN}║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[05]${WHITE} 📦 Personalizar Buffers ZiVPN / UDP Custom${RESET}${CYAN}   ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[06]${WHITE} 🚀 Optimización Completa Turbo (Auto-Calibración)${RESET}${CYAN}║${RESET}\n"
+    row "${WHITE}   ▸ BUFFERS Y CALIBRACIÓN${RESET}"
+    row "   ${GREEN}[03]${WHITE} 🎛️ Buffers de Socket (MANUAL, MB)${RESET}"
+    row "   ${GREEN}[04]${WHITE} ⚙️ Ring Buffers RX / TX (ethtool)${RESET}"
+    row "   ${GREEN}[05]${WHITE} 📦 Buffers ZiVPN / UDP Custom${RESET}"
+    row "   ${GREEN}[06]${WHITE} 🚀 Optimización Completa Turbo (Auto-Calib.)${RESET}"
     H2
-    printf "${CYAN}║${WHITE}   ▸ SEGURIDAD Y CONECTIVIDAD${RESET}${CYAN}                          ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[08]${WHITE} 📏 Configuración de MTU (manual)${RESET}${CYAN}           ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[09]${WHITE} 🌐 Elegir DNS (lista o IP personalizada)${RESET}${CYAN}    ║${RESET}\n"
+    row "${WHITE}   ▸ SEGURIDAD Y CONECTIVIDAD${RESET}"
+    row "   ${GREEN}[08]${WHITE} 📏 Configuración de MTU (manual)${RESET}"
+    row "   ${GREEN}[09]${WHITE} 🌐 Elegir DNS (lista o IP personalizada)${RESET}"
     H2
-    printf "${CYAN}║${WHITE}   ▸ DIAGNÓSTICO${RESET}${CYAN}                                           ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[11]${WHITE} 🩺 Diagnóstico de Video & Velocidad${RESET}${CYAN}      ║${RESET}\n"
+    row "${WHITE}   ▸ DIAGNÓSTICO${RESET}"
+    row "   ${GREEN}[11]${WHITE} 🩺 Diagnóstico de Video & Velocidad${RESET}"
     H2
-    printf "${CYAN}║${WHITE}   ▸ ACELERACIÓN EXTERNA${RESET}${CYAN}                               ║${RESET}\n"
-    printf "${CYAN}║${RESET}   ${GREEN}[13]${WHITE} ☁️ WARP Smart Exit (bypass throttling carrier)${RESET}${CYAN}║${RESET}\n"
+    row "${WHITE}   ▸ ACELERACIÓN EXTERNA${RESET}"
+    row "   ${GREEN}[13]${WHITE} ☁️ WARP Smart Exit (bypass throttling)${RESET}"
     H2
-    printf "${CYAN}║${RESET}   ${RED}[00]${WHITE} ↩️  Volver al Menú Principal${RESET}${CYAN}                     ║${RESET}\n"
+    row "   ${RED}[00]${WHITE} ↩️  Volver al Menú Principal${RESET}"
     H3
     echo ""
     read -rp "$(trx '   ► Opción: ')" OP

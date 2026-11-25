@@ -591,6 +591,19 @@ fi
 mv_prow "📶" "${MENU_SPEED:-Velocidad}" "⬇ $(speed "$SPD_IN")  ⬆ $(speed "$SPD_OUT")"
 mv_prow "📊" "${MENU_TRAFFIC:-Consumo}" "⬇ $NET_TOTAL_IN  ⬆ $NET_TOTAL_OUT"
 mv_prow "📈" "Total" "$NET_TOTAL_SUM"
+_MTU=$(cat /sys/class/net/"$IFACE"/mtu 2>/dev/null || echo "1500")
+_RMEM=$(awk '{print $3}' /proc/sys/net/ipv4/tcp_rmem 2>/dev/null)
+_WMEM=$(awk '{print $3}' /proc/sys/net/ipv4/tcp_wmem 2>/dev/null)
+_BUF_RX=$(( ${_RMEM:-0} / 1048576 )); [[ $_BUF_RX -eq 0 ]] && _BUF_RX=64
+_BUF_TX=$(( ${_WMEM:-0} / 1048576 )); [[ $_BUF_TX -eq 0 ]] && _BUF_TX=64
+_CONG=$(sysctl -n net.ipv4.tcp_congestion_control 2>/dev/null || echo "bbr")
+_QDISC=$(sysctl -n net.core.default_qdisc 2>/dev/null || echo "fq")
+if [[ "$_CONG" == "bbr" ]]; then
+    [[ "$_QDISC" == *fq* ]] && _CONG="BBR v3 + FQ Pacing" || _CONG="BBR v3"
+fi
+mv_prow "🔧" "MTU" "$_MTU"
+mv_prow "📦" "Buffer RX/TX" "${_BUF_RX}MB / ${_BUF_TX}MB"
+mv_prow "🚀" "Congestión" "$_CONG"
 mv_panel_mid "${MENU_SECURITY:-SEGURIDAD}"
 if [[ "$CF_STATUS_LIVE" == "ON" ]]; then mv_prow "☁️" "Cloudflare" "● ON"; else mv_prow "☁️" "Cloudflare" "○ OFF"; fi
 if [[ "$NOIP_STATUS_LIVE" == "ON" ]]; then mv_prow "🛰" "No-IP" "● ON"; else mv_prow "🛰" "No-IP" "○ OFF"; fi
