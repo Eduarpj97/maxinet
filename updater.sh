@@ -141,7 +141,7 @@ echo -e "  ${GOLD}[4/6]${RESET} ${WHITE}Descargando v${GREEN}${REMOTE_VER}${WHIT
 rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
 
-if ! curl -fL --max-time 240 --retry 3 -o "$TEMP_DIR/src.tar.gz" "${REPO_TARBALL}?t=$(date +%s)"; then
+if ! curl -fsSL --max-time 240 --retry 3 -o "$TEMP_DIR/src.tar.gz" "${REPO_TARBALL}?t=$(date +%s)" 2>/dev/null; then
     _upd_box_err "Error descargando el paquete desde GitHub"
     echo -e "        ${GRAY}Restaurando respaldo...${RESET}"
     cp -a "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null

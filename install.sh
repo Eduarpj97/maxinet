@@ -355,7 +355,7 @@ if [[ -d "/etc/maxinet" ]]; then
             if [[ -f /etc/zivpn/config.json ]] && command -v jq >/dev/null 2>&1; then
                 _zv_mode=$(jq -r '.auth.mode // ""' /etc/zivpn/config.json 2>/dev/null)
                 if [[ "$_zv_mode" != "command" && -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
-                    ( source /etc/maxinet/protocolos/zipvpn.sh >/dev/null 2>&1 && crear_auth_zivpn ) 2>/dev/null || true
+                    ( DIR_ZIVPN="/etc/zivpn"; eval "$(sed -n '/^crear_auth_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; crear_auth_zivpn ) >/dev/null 2>&1 || true
                     if [[ -x /etc/zivpn/auth.sh ]]; then
                         jq '.auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null && \
                             mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json && \
