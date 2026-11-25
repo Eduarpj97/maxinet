@@ -235,10 +235,10 @@ udp 17 18 src=191.95.37.37 dst=10.0.0.211 sport=13277 dport=9124 packets=9 bytes
 export ABBIENET_CT_DUMP="$MAXINET_CT_DUMP"
 
 mkdir -p "$TMP/bin"
-cat > "$TMP/bin/conntrack" << 'EOF'
+cat > "$TMP/bin/conntrack" << EOF
 #!/bin/bash
-if [[ "$1" == "-D" ]]; then
-    echo "$*" >> "$TMP/ct_borra"
+if [[ "\$1" == "-D" ]]; then
+    echo "\$*" >> "$TMP/ct_borra"
     exit 0
 fi
 echo "udp 17 3 src=191.95.37.37 dst=10.0.0.211 sport=13276 dport=9123 packets=1 bytes=110 src=10.0.0.211 dst=191.95.37.37 sport=5667 dport=27396 [ASSURED] mark=0 use=1"
@@ -254,7 +254,20 @@ grep -q -- '--sport 13276 ' "$TMP/ct_borra" \
 grep -q -- '--sport 13277' "$TMP/ct_borra" \
     && fail "el flujo vivo NO debe tocarse" || ok "flujo vivo no purgado"
 
-echo "════ 13. Sintaxis bash -n de toda la suite ════"
+echo "════ 13. Conexiones reales y Banner sin simulación (v3.1.4) ════"
+grep -q 'who 2>/dev/null | wc -l' configs/profile.d/Maxinet-banner.sh \
+    && fail "el banner no debe usar 'who | wc -l' (cuenta al admin root)" || ok "banner: libre de 'who | wc -l'"
+
+grep -qF 'sshd:[[:space:]]*root' configs/profile.d/Maxinet-banner.sh \
+    && ok "banner: excluye sesiones administrativas de root" || fail "banner: filtro de root en sshd"
+
+grep -qF 'sshd:[[:space:]]*root' menu.sh \
+    && ok "menu: SSH_CONN excluye sesiones administrativas de root" || fail "menu: filtro de root en SSH_CONN"
+
+grep -q "cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'" install.sh \
+    && fail "install.sh no debe contener el heredoc lento heredado" || ok "install.sh: libre de heredoc lento de banner"
+
+echo "════ 14. Sintaxis bash -n de toda la suite ════"
 for f in install.sh updater.sh menu.sh configs/profile.d/Maxinet-banner.sh \
          herramientas/*.sh protocolos/*.sh usuarios/*.sh lib/*.sh; do
     [[ -f "$f" ]] || continue

@@ -42,7 +42,7 @@ TEMP_DIR="/tmp/maxinet-update-$$"
 
 clear
 TOP
-printf "${CYAN}║${RESET}  ${GOLD}🛡️  Maxinet Network${RESET}  ${WHITE}ACTUALIZADOR v${VERSION:-$(cat "$BASE/version.txt" 2>/dev/null || echo "7.1.5")}${RESET}${CYAN}           ║${RESET}\n"
+printf "${CYAN}║${RESET}  ${GOLD}🛡️  Maxinet Network${RESET}  ${WHITE}ACTUALIZADOR v${VERSION:-$(cat "$BASE/version.txt" 2>/dev/null || echo "3.1.4")}${RESET}${CYAN}           ║${RESET}\n"
 printf "${CYAN}║${RESET}  ${GRAY}maxinet-network.web.app${RESET}  ${GRAY}·${RESET}  ${WHITE}Actualizador${RESET}${CYAN}                    ║${RESET}\n"
 MID
 echo ""
@@ -170,6 +170,11 @@ find "$SCRIPTS_DIR" -name "*.sh" -type f -exec sed -i 's/\r$//' {} + 2>/dev/null
 find "$SCRIPTS_DIR/herramientas" -name "*.sh" -type f -exec sed -i 's/\r$//' {} + 2>/dev/null
 
 ROWC "${GREEN}✓ Instalador aplicado (v${REMOTE_VER})${RESET}"
+
+if [[ -f "$BASE/configs/profile.d/Maxinet-banner.sh" ]]; then
+    cp -f "$BASE/configs/profile.d/Maxinet-banner.sh" /etc/profile.d/Maxinet-banner.sh 2>/dev/null
+    chmod +x /etc/profile.d/Maxinet-banner.sh 2>/dev/null
+fi
 
 #==============================
 # [6] IPTABLES GAMING

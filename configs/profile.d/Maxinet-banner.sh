@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v7.1.5
+# Maxinet Network - Premium Welcome Banner v3.1.4
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -22,7 +22,28 @@ fi
 UPTIME=$(uptime -p 2>/dev/null | sed 's/up //')
 FECHA=$(date +"%d-%m-%Y")
 HORA=$(date +"%H:%M:%S")
-ONLINE=$(who 2>/dev/null | wc -l)
+
+# ── Conexiones VPN reales (100% verificadas, excluye sesión administrativa de root) ──
+_ssh_c=$(ps -C sshd -o args= 2>/dev/null | grep "\[priv\]" | grep -vE 'sshd:[[:space:]]*root' | wc -l)
+_drop_p=$(pgrep -x dropbear 2>/dev/null | wc -l)
+_drop_c=$(( _drop_p > 1 ? _drop_p - 1 : 0 ))
+_udp_c=0
+if [[ -r /proc/net/nf_conntrack ]]; then
+    _udp_c=$(grep -c 'dport=36712' /proc/net/nf_conntrack 2>/dev/null || echo 0)
+elif command -v conntrack >/dev/null 2>&1; then
+    _udp_c=$(conntrack -L -p udp --dport 36712 2>/dev/null | grep -cv UNREPLIED || echo 0)
+fi
+_zi_c=0
+if [[ -r /proc/net/nf_conntrack ]]; then
+    _zi_c=$(grep -c 'dport=5667' /proc/net/nf_conntrack 2>/dev/null || echo 0)
+elif command -v conntrack >/dev/null 2>&1; then
+    _zi_c=$(conntrack -L -p udp --dport 5667 2>/dev/null | grep -cv UNREPLIED || echo 0)
+fi
+_bad_c=0
+if command -v ss >/dev/null 2>&1; then
+    _bad_c=$(ss -Htn sport = :7200 state established 2>/dev/null | wc -l)
+fi
+ONLINE=$(( _ssh_c + _drop_c + _udp_c + _zi_c + _bad_c ))
 
 # ── Info de red simplificada ──
 IFACE=$(ip route 2>/dev/null | awk '/^default/ {print $5; exit}')
