@@ -449,7 +449,7 @@ UPD_NOW=$(date +%s)
 if [[ ! -f "$UPD_CACHE" ]] || (( UPD_NOW - $(cat "$UPD_CACHE" 2>/dev/null || echo 0) > 21600 )); then
     echo "$UPD_NOW" > "$UPD_CACHE"
     (
-        _upd_rv=$(curl -fsSL --max-time 2 "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/version.txt" 2>/dev/null | tr -d ' \n\r')
+        _upd_rv=$(curl -fsSL --max-time 3 -H "Cache-Control: no-cache" "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/version.txt?t=$(date +%s)" 2>/dev/null | tr -d ' \n\r')
         [[ -n "$_upd_rv" ]] && echo "$_upd_rv" > "$UPD_VER_FILE"
     ) &>/dev/null &
 fi

@@ -42,6 +42,15 @@ _upd_header() {
     fi
 }
 
+_upd_pause_exit() {
+    local code="${1:-1}"
+    if [[ -t 0 ]]; then
+        echo ""
+        read -rp "$(echo -e "${CYAN}  Presiona Enter para volver al menú...${RESET}")" _
+    fi
+    exit "$code"
+}
+
 _upd_box_err() {
     local msg="$1"
     echo ""
@@ -67,9 +76,9 @@ echo ""
 #==============================
 
 echo -e "  ${GOLD}[1/6]${RESET} ${WHITE}Verificando conexión...${RESET}"
-if ! curl -fsSL --max-time 5 https://github.com &>/dev/null; then
-    _upd_box_err "Sin conexión a internet"
-    exit 1
+if ! curl -fsSL --max-time 8 https://github.com &>/dev/null; then
+    _upd_box_err "Sin conexión a GitHub"
+    _upd_pause_exit 1
 fi
 echo -e "        ${GREEN}✓ Conexión establecida${RESET}"
 
@@ -80,13 +89,13 @@ echo -e "        ${GREEN}✓ Conexión establecida${RESET}"
 echo -e "  ${GOLD}[2/6]${RESET} ${WHITE}Verificando versión...${RESET}"
 
 LOCAL_VER=$(tr -d ' \r\n' < "$BASE/version.txt" 2>/dev/null || echo "0")
-REMOTE_VER=$(curl -fsSL --max-time 5 "$RAW_VER" 2>/dev/null | tr -d ' \r\n')
-[[ -z "$REMOTE_VER" ]] && REMOTE_VER=$(curl -fsSL --max-time 8 "https://api.github.com/repos/Eduarpj97/maxinet/contents/version.txt" 2>/dev/null \
+REMOTE_VER=$(curl -fsSL --max-time 8 -H "Cache-Control: no-cache" "${RAW_VER}?t=$(date +%s)" 2>/dev/null | tr -d ' \r\n')
+[[ -z "$REMOTE_VER" ]] && REMOTE_VER=$(curl -fsSL --max-time 10 "https://api.github.com/repos/Eduarpj97/maxinet/contents/version.txt" 2>/dev/null \
     | grep -o '"content":"[^"]*"' | head -1 | cut -d'"' -f4 | base64 -d 2>/dev/null | tr -d ' \r\n')
 
 if [[ -z "$REMOTE_VER" ]]; then
     _upd_box_err "No se pudo verificar versión remota"
-    exit 1
+    _upd_pause_exit 1
 fi
 
 if [[ "$LOCAL_VER" == "$REMOTE_VER" ]]; then
@@ -96,7 +105,7 @@ if [[ "$LOCAL_VER" == "$REMOTE_VER" ]]; then
         echo -e "        ${GREEN}✓ v${LOCAL_VER} — Misma versión en servidor${RESET}"
         echo ""
         read -rp "$(echo -e "${CYAN}  ¿Deseas forzar la reinstalación con los últimos cambios de GitHub? [s/N]: ${RESET}")" FORZAR
-        if [[ ! "$FORZAR" =~ ^[sS]$ ]]; then
+        if [[ ! "$FORZAR" =~ ^[sSyY]$ ]]; then
             echo ""
             read -rp "$(echo -e "${CYAN}  Enter para volver${RESET}")" _
             exec bash "$BASE/menu.sh"
@@ -114,7 +123,7 @@ echo -e "        ${WHITE}Local: ${GOLD}v${LOCAL_VER}${RESET}  →  Remota: ${GRE
 echo -e "  ${GOLD}[3/6]${RESET} ${WHITE}Respaldando scripts...${RESET}"
 
 mkdir -p "$BACKUP_DIR"
-cp -r "$SCRIPTS_DIR"/* "$BACKUP_DIR/" 2>/dev/null
+find "$SCRIPTS_DIR" -maxdepth 1 -mindepth 1 ! -name 'backups' -exec cp -a {} "$BACKUP_DIR/" \; 2>/dev/null
 BACKUP_SIZE=$(du -sh "$BACKUP_DIR" 2>/dev/null | awk '{print $1}')
 echo -e "        ${GREEN}✓ Respaldo (${BACKUP_SIZE:-?})${RESET}"
 
@@ -132,23 +141,28 @@ echo -e "  ${GOLD}[4/6]${RESET} ${WHITE}Descargando v${GREEN}${REMOTE_VER}${WHIT
 rm -rf "$TEMP_DIR"
 mkdir -p "$TEMP_DIR"
 
-curl -fL --max-time 240 --retry 3 -o "$TEMP_DIR/src.tar.gz" "$REPO_TARBALL" 2>/dev/null
-if [[ $? -ne 0 ]]; then
-    echo -e "        ${RED}✗ Error descargando el paquete${RESET}"
+if ! curl -fL --max-time 240 --retry 3 -o "$TEMP_DIR/src.tar.gz" "${REPO_TARBALL}?t=$(date +%s)"; then
+    _upd_box_err "Error descargando el paquete desde GitHub"
     echo -e "        ${GRAY}Restaurando respaldo...${RESET}"
-    cp -r "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null
+    cp -a "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null
     rm -rf "$TEMP_DIR"
-    exit 1
+    _upd_pause_exit 1
 fi
 
-tar -xzf "$TEMP_DIR/src.tar.gz" -C "$TEMP_DIR" 2>/dev/null
-PKG_DIR=$(find "$TEMP_DIR" -maxdepth 2 -name install.sh -type f -printf '%h\n' 2>/dev/null | head -n1)
-if [[ -z "$PKG_DIR" || ! -f "$PKG_DIR/menu.sh" || ! -d "$PKG_DIR/protocolos" ]]; then
-    echo -e "        ${RED}✗ Paquete inválido — actualización cancelada${RESET}"
-    echo -e "        ${GRAY}Restaurando respaldo...${RESET}"
-    cp -r "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null
+if ! tar -xzf "$TEMP_DIR/src.tar.gz" -C "$TEMP_DIR" 2>/dev/null; then
+    _upd_box_err "Archivo descargado corrupto (error al descomprimir)"
     rm -rf "$TEMP_DIR"
-    exit 1
+    _upd_pause_exit 1
+fi
+_inst_found=$(find "$TEMP_DIR" -maxdepth 2 -name install.sh -type f 2>/dev/null | head -n1)
+PKG_DIR=""
+[[ -n "$_inst_found" ]] && PKG_DIR="$(dirname "$_inst_found")"
+if [[ -z "$PKG_DIR" || ! -f "$PKG_DIR/menu.sh" || ! -d "$PKG_DIR/protocolos" ]]; then
+    _upd_box_err "Paquete inválido — actualización cancelada"
+    echo -e "        ${GRAY}Restaurando respaldo...${RESET}"
+    cp -a "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null
+    rm -rf "$TEMP_DIR"
+    _upd_pause_exit 1
 fi
 rm -f "$TEMP_DIR/src.tar.gz"
 echo -e "        ${GREEN}✓ Paquete descargado y verificado${RESET}"
@@ -165,10 +179,10 @@ RC=$?
 rm -rf "$TEMP_DIR"
 
 if [[ $RC -ne 0 ]]; then
-    echo -e "        ${RED}✗ Instalador reportó error ($RC)${RESET}"
+    _upd_box_err "Instalador reportó error (código $RC)"
     echo -e "        ${GRAY}Restaurando respaldo...${RESET}"
-    cp -r "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null
-    exit 1
+    cp -a "$BACKUP_DIR"/* "$SCRIPTS_DIR/" 2>/dev/null
+    _upd_pause_exit 1
 fi
 
 # Fix CRLF from Windows — TODOS los .sh del sistema
@@ -204,7 +218,8 @@ iptables -N MAXINET_OUT >/dev/null 2>&1
 iptables -C OUTPUT -j MAXINET_OUT >/dev/null 2>&1 || iptables -I OUTPUT 1 -j MAXINET_OUT
 
 mkdir -p /etc/iptables
-iptables-save > /etc/iptables/rules.v4
+iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+printf '%s\n' "$REMOTE_VER" > /tmp/maxinet_upd_ver 2>/dev/null || true
 
 echo -e "        ${GREEN}✓ iptables configurado${RESET}"
 

@@ -379,8 +379,8 @@ if [[ -d "/etc/maxinet" ]]; then
                 echo " ✅ Banner SSH de bienvenida actualizado en /etc/profile.d/Maxinet-banner.sh."
             fi
         else
-            echo " (sin payload local disponible — delegando en update.sh remoto)"
-            bash <(curl -fsSL https://raw.githubusercontent.com/Eduarpj97/maxinet/main/update.sh) || true
+            echo " (sin payload local disponible — delegando en updater.sh remoto)"
+            bash <(curl -fsSL "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/updater.sh?t=$(date +%s)") --force || true
         fi
         exit 0
     fi
