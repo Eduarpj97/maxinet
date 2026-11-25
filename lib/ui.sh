@@ -244,11 +244,16 @@ mv_sep_rainbow(){
 
 # ── Ancho del terminal (cap estético 110, mínimo seguro 30) ──
 mv_cols(){
+    if [[ -n "${_MV_COLS_CACHE:-}" ]]; then
+        echo "$_MV_COLS_CACHE"
+        return 0
+    fi
     local C=""
     C=$(tput cols 2>/dev/null) || true
     [[ -z "$C" || ! "$C" =~ ^[0-9]+$ ]] && C="${COLUMNS:-80}"
     (( C < 30 )) && C=30
     (( C > 110 )) && C=110
+    _MV_COLS_CACHE="$C"
     echo "$C"
 }
 

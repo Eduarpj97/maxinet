@@ -253,9 +253,9 @@ T_START=$(date +%s%N)
 # Estado de seguridad
 #=========================================================
 
-if systemctl is-active --quiet fail2ban; then
+if systemctl is-active --quiet fail2ban 2>/dev/null; then
     SEC_STATUS="${GREEN}●${RESET}"
-    SEC_JAILS=$(fail2ban-client status 2>/dev/null | grep "Jail list" | sed 's/.*Jail list:[[:space:]]*//')
+    SEC_JAILS=$(timeout 1s fail2ban-client status 2>/dev/null | grep "Jail list" | sed 's/.*Jail list:[[:space:]]*//')
     FAIL2BAN_LIVE="ON"
 else
     SEC_STATUS="${RED}●${RESET}"
@@ -289,54 +289,6 @@ else
     RX_TOTAL="$VPS_BASE_RX"; TX_TOTAL="$VPS_BASE_TX"
 fi
 NET_TOTAL_SUM=$(human $((RX_TOTAL + TX_TOTAL)))
-
-#=========================================================
-# Estado de protocolos
-#=========================================================
-
-SVC_ARR=($(systemctl is-active ssh dropbear_custom haproxy udp-custom xray badvpn-udpgw-7200 zivpn 2>/dev/null))
-
-SSH_S=$(svc_icon 1 ssh)
-DROP_S=$(svc_icon 2 dropbear_custom)
-HA_S=$(svc_icon 3 haproxy)
-UDP_S=$(svc_icon 4 udp-custom)
-XRAY_S=$(svc_icon 5 xray)
-BAD_S=$(svc_icon 6 badvpn-udpgw-7200)
-ZIP_S=$(svc_icon 7 zivpn)
-
-#---------------------------------------------------------
-# Protocolos EXTRA — detección real (systemd + binario)
-#---------------------------------------------------------
-# proto_state <servicio-systemd> <binario> → ● verde / ● rojo / ○ gris
-proto_state() {
-    local svc="$1" bin="$2"
-    if [[ -n "$svc" ]] && { svc_exists "$svc" || command -v "$svc" >/dev/null 2>&1; }; then
-        if systemctl is-active --quiet "$svc" 2>/dev/null; then
-            echo -e "${GREEN}●${RESET}"
-        else
-            echo -e "${RED}●${RESET}"
-        fi
-        return
-    fi
-    if [[ -n "$bin" ]] && { pgrep -x "$bin" >/dev/null 2>&1 || pgrep -f "$bin" >/dev/null 2>&1; }; then
-        echo -e "${GREEN}●${RESET}"
-        return
-    fi
-    echo -e "${GRAY}○${RESET}"
-}
-
-WS_S=$(proto_state ssh-ws-internal "ssh-ws")
-BHTTP_S=$(proto_state bhttp "bhttp-server")
-BTUN_S=$(proto_state btun "btun-server")
-HCR_S=$(proto_state hcr "hcr")
-XHTTP_S=$(proto_state xhttp "xhttp-server")
-SS_S=$(proto_state "shadowsocks-libev" "ss-server")
-STUN_S=$(proto_state stunnel4 "stunnel4")
-SOCKS_S=$(proto_state "danted" "danted")
-DNSTT_S=$(proto_state "dnstt" "dnstt")
-OVPN_S=$(proto_state "openvpn" "openvpn")
-WG_S=$(proto_state "wg-quick@wg0" "wg")
-SQUID_S=$(proto_state squid "squid")
 
 #=========================================================
 # Conexiones en tiempo real (100% verificadas, ultrarrápidas)

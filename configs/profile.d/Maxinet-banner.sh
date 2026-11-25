@@ -45,13 +45,16 @@ _zi_c=0
 if [[ -r /proc/net/nf_conntrack ]]; then
     read -r _udp_c _zi_c < <(awk '/dport=36712/{u++} /dport=5667/{z++} END{print u+0, z+0}' /proc/net/nf_conntrack 2>/dev/null)
 elif command -v conntrack >/dev/null 2>&1; then
-    _udp_c=$(conntrack -L -p udp --dport 36712 2>/dev/null | grep -cv UNREPLIED || echo 0)
-    _zi_c=$(conntrack -L -p udp --dport 5667 2>/dev/null | grep -cv UNREPLIED || echo 0)
+    _udp_c=$(conntrack -L -p udp --dport 36712 2>/dev/null | grep -cv UNREPLIED || true)
+    _zi_c=$(conntrack -L -p udp --dport 5667 2>/dev/null | grep -cv UNREPLIED || true)
 fi
+_udp_c="${_udp_c//[^0-9]/}"; _udp_c="${_udp_c:-0}"
+_zi_c="${_zi_c//[^0-9]/}"; _zi_c="${_zi_c:-0}"
 _bad_c=0
 if command -v ss >/dev/null 2>&1; then
     _bad_c=$(ss -Htn sport = :7200 state established 2>/dev/null | wc -l)
 fi
+_bad_c="${_bad_c//[^0-9]/}"; _bad_c="${_bad_c:-0}"
 ONLINE=$(( _ssh_c + _drop_c + _udp_c + _zi_c + _bad_c ))
 
 # ── Colores (ANSI 256) ──────────────────────────
@@ -100,9 +103,10 @@ hr() {
     printf '%b\n' "${C_AZUL}${line// /$char}${C_RESET}"
 }
 
-# ── Panel (ancho fijo, alineación perfecta) ─────
-PW=48
-PL=1
+# ── Panel (ancho fijo, centrado perfecto) ─────
+PW=54
+PL=$(( (COLS - PW - 2) / 2 ))
+[[ $PL -lt 0 ]] && PL=0
 
 p_marco_sup() {
     local border; printf -v border '%*s' "$PW" ""
@@ -173,7 +177,7 @@ p_marco_sup
 p_fila "▶" "Servidor"     "${SERVER}"
 p_fila "●" "Dominio"      "${DOMAIN}" "${C_MAGENTA}"
 p_fila "◈" "IP Pública"   "${IP_LOCAL}" "${C_MAGENTA}"
-p_fila "⚡" "Uptime"       "${UPTIME}"
+p_fila "✦" "Uptime"       "${UPTIME}"
 p_fila "✪" "Conectados"   "${ONLINE}"
 p_fila "◆" "Fecha"        "${FECHA}"
 p_fila "◉" "Hora"         "${HORA}"
