@@ -187,10 +187,19 @@ configurar_firewall_zivpn() {
 
     while iptables -t nat -D PREROUTING -p udp -m udp --dport 6000:19999 -j DNAT --to-destination ":$PUERTO" 2>/dev/null; do :; done
     while iptables -t nat -D PREROUTING -i "$DEV" -p udp -m udp --dport 6000:19999 -j DNAT --to-destination ":$PUERTO" 2>/dev/null; do :; done
+    while iptables -t nat -D PREROUTING -p udp --dport 6000:19999 -j REDIRECT --to-port "$PUERTO" 2>/dev/null; do :; done
+    while iptables -t nat -D PREROUTING -i "$DEV" -p udp --dport 6000:19999 -j REDIRECT --to-port "$PUERTO" 2>/dev/null; do :; done
+    while iptables -t nat -D PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; do :; done
     while iptables -D INPUT -p udp --dport "$PUERTO" -j ACCEPT 2>/dev/null; do :; done
 
+    iptables -t nat -I PREROUTING 1 -i "$DEV" -p udp -m udp --dport 6000:19999 -j DNAT --to-destination ":$PUERTO" 2>/dev/null
+    iptables -t nat -C PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+        iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
+
     iptables -I INPUT 1 -p udp --dport "$PUERTO" -j ACCEPT 2>/dev/null
-    iptables -t nat -A PREROUTING -p udp -m udp --dport 6000:19999 -j REDIRECT --to-port "$PUERTO" 2>/dev/null
+    iptables -t nat -C POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null || \
+        iptables -t nat -A POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null
+    netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 }
 
 crear_auth_zivpn() {
@@ -351,7 +360,13 @@ reinstalar_zivpn() {
     "listen": ":$PUERTO",
     "cert": "$DIR_ZIVPN/zivpn.crt",
     "key": "$DIR_ZIVPN/zivpn.key",
-    "obfs": "",
+    "log_level": "info",
+    "recv_window_conn": 33554432,
+    "recv_window_client": 67108864,
+    "max_conn_client": 8192,
+    "up_mbps": 1000,
+    "down_mbps": 1000,
+    "disable_udp": false,
     "auth": {
         "mode": "command",
         "command": "$DIR_ZIVPN/auth.sh",

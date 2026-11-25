@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.7")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.8")}"
             shift
             ;;
         --limpiar-solo)
@@ -350,17 +350,24 @@ if [[ -d "/etc/maxinet" ]]; then
             ( crontab -l 2>/dev/null | grep -v 'expira-exacta'; echo '* * * * * bash /etc/maxinet/scripts/expira-exacta.sh >/dev/null 2>&1' ) | crontab - 2>/dev/null || true
             echo " ✅ Cron expira-exacta (minuto) configurado."
             if [[ -f /etc/maxinet/herramientas/trafico.sh ]]; then
+                bash /etc/maxinet/herramientas/trafico.sh --init >/dev/null 2>&1 || true
                 bash /etc/maxinet/herramientas/trafico.sh --install-cron >/dev/null 2>&1 || true
             fi
             if [[ -f /etc/zivpn/config.json ]] && command -v jq >/dev/null 2>&1; then
                 _zv_mode=$(jq -r '.auth.mode // ""' /etc/zivpn/config.json 2>/dev/null)
-                if [[ "$_zv_mode" != "command" && -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
-                    ( DIR_ZIVPN="/etc/zivpn"; eval "$(sed -n '/^crear_auth_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; crear_auth_zivpn ) >/dev/null 2>&1 || true
+                _zv_rwc=$(jq -r '.recv_window_client // 0' /etc/zivpn/config.json 2>/dev/null)
+                _zv_ll=$(jq -r '.log_level // ""' /etc/zivpn/config.json 2>/dev/null)
+                if [[ "$_zv_mode" != "command" || "${_zv_rwc:-0}" -lt 33554432 || "$_zv_ll" != "info" ]]; then
+                    if [[ -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
+                        ( DIR_ZIVPN="/etc/zivpn"; eval "$(sed -n '/^crear_auth_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; crear_auth_zivpn ) >/dev/null 2>&1 || true
+                    fi
                     if [[ -x /etc/zivpn/auth.sh ]]; then
-                        jq '.auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null && \
+                        jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 33554432 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 1000 | .down_mbps = 1000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
+                            /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null && \
                             mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json && \
                             systemctl restart zivpn.service >/dev/null 2>&1 || rm -f /tmp/zv_cfg.tmp
-                        echo " ✅ ZiVPN migrado a auth mode=command (conexiones reales)."
+                        ( eval "$(sed -n '/^get_dev_interfaz()/,/^}/p; /^configurar_firewall_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; configurar_firewall_zivpn "$(jq -r '.listen // ":5667"' /etc/zivpn/config.json 2>/dev/null | tr -d ':')" ) >/dev/null 2>&1 || true
+                        echo " ✅ ZiVPN optimizado y migrado a auth mode=command (conexiones reales)."
                     fi
                 fi
             fi

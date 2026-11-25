@@ -329,19 +329,20 @@ trafico_init_usuario() {
     iptables -C "$chain_out" -j RETURN 2>/dev/null || iptables -A "$chain_out" -j RETURN 2>/dev/null
 
     # Accounting por UID para procesos del sistema (sshd/dropbear/socks)
+    # Se inserta en posición 1 para contar ANTES de reglas ACCEPT previas.
     if id "$user" >/dev/null 2>&1; then
         iptables -C OUTPUT -m owner --uid-owner "$user" -j "$chain_out" 2>/dev/null || \
-            iptables -A OUTPUT -m owner --uid-owner "$user" -j "$chain_out" 2>/dev/null
+            iptables -I OUTPUT 1 -m owner --uid-owner "$user" -j "$chain_out" 2>/dev/null
 
         local uid_val
         uid_val=$(id -u "$user" 2>/dev/null)
         if [[ -n "$uid_val" && "$uid_val" -ge 1000 ]] 2>/dev/null; then
             iptables -t mangle -C OUTPUT -m owner --uid-owner "$user" -j CONNMARK --set-mark "$uid_val" 2>/dev/null || \
-                iptables -t mangle -A OUTPUT -m owner --uid-owner "$user" -j CONNMARK --set-mark "$uid_val" 2>/dev/null
+                iptables -t mangle -I OUTPUT 1 -m owner --uid-owner "$user" -j CONNMARK --set-mark "$uid_val" 2>/dev/null
             iptables -t mangle -C PREROUTING -j CONNMARK --restore-mark 2>/dev/null || \
-                iptables -t mangle -A PREROUTING -j CONNMARK --restore-mark 2>/dev/null
+                iptables -t mangle -I PREROUTING 1 -j CONNMARK --restore-mark 2>/dev/null
             iptables -C INPUT -m connmark --mark "$uid_val" -j "$chain_in" 2>/dev/null || \
-                iptables -A INPUT -m connmark --mark "$uid_val" -j "$chain_in" 2>/dev/null
+                iptables -I INPUT 1 -m connmark --mark "$uid_val" -j "$chain_in" 2>/dev/null
         fi
     fi
     return 0
