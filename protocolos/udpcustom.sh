@@ -68,21 +68,30 @@ DEV="${DEV:-eth0}"
 iptables -t nat -S PREROUTING 2>/dev/null | grep -E "DNAT.*:(2100|36712|5667)" | sed 's/^-A/-D/' | while read -r rule; do
     iptables -t nat $rule 2>/dev/null || true
 done
+while iptables -t nat -D PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; do :; done
 
-# 1. Excepción ESTABLISHED,RELATED (evita secuestrar respuestas DNS/QUIC)
-iptables -t nat -C PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
-    iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
+# 1. Excepción ESTABLISHED,RELATED en posición 1 (evita secuestrar respuestas DNS/QUIC/túneles)
+iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
 
-# 2. ZiVPN Port-Hopping 6000:19999 -> 5667
-iptables -t nat -A PREROUTING -p udp -m udp --dport 6000:19999 -j DNAT --to-destination :5667 2>/dev/null
+# 2. ZiVPN Port-Hopping 6000:19999 -> 5667 (si ZiVPN está instalado)
+if [[ -f /etc/zivpn/config.json ]]; then
+    _zv_p=$(grep -oP '"listen":\s*":?\K[0-9]+' /etc/zivpn/config.json 2>/dev/null | head -1)
+    : "${_zv_p:=5667}"
+    iptables -t nat -A PREROUTING -i "$DEV" -p udp -m udp --dport 6000:19999 -j DNAT --to-destination ":${_zv_p}" 2>/dev/null
+fi
 
-# 3. DNAT UDP Custom -> 36712 (excluyendo puertos dedicados)
-for _rng in 1:89 91:108 110:142 144:5666 5668:7099 7301:9899 9901:36711 36713:65535; do
+# 3. DNAT UDP Custom -> 36712 (excluyendo DNS:53, QUIC:443, Dropbear:90/109/143, SlowDNS:5300, ZiVPN:5667, BadVPN:7100-7300/9900)
+for _rng in 1:52 54:89 91:108 110:142 144:442 444:5299 5301:5666 5668:7099 7301:9899 9901:36711 36713:65535; do
     iptables -t nat -A PREROUTING -i "$DEV" -p udp -m udp --dport "$_rng" -j DNAT --to-destination :36712 2>/dev/null
 done
 
-iptables -C INPUT -p udp --dport 36712 -j ACCEPT 2>/dev/null || iptables -A INPUT -p udp --dport 36712 -j ACCEPT 2>/dev/null
+iptables -C INPUT -p udp --dport 36712 -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport 36712 -j ACCEPT 2>/dev/null
 iptables -t nat -C POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null
+iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+    iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+iptables -t mangle -C POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+    iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+command -v ufw >/dev/null 2>&1 && ufw allow 36712/udp >/dev/null 2>&1
 netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
 ARCH=$(uname -m)
@@ -123,7 +132,7 @@ cat > /root/udp/config.json <<EOF
 {
     "listen": ":36712",
     "stream_buffer": 33554432,
-    "receive_buffer": 83886080,
+    "receive_buffer": 67108864,
     "auth": {
         "mode": "passwords"
     }

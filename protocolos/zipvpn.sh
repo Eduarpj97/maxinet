@@ -191,14 +191,21 @@ configurar_firewall_zivpn() {
     while iptables -t nat -D PREROUTING -i "$DEV" -p udp --dport 6000:19999 -j REDIRECT --to-port "$PUERTO" 2>/dev/null; do :; done
     while iptables -t nat -D PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; do :; done
     while iptables -D INPUT -p udp --dport "$PUERTO" -j ACCEPT 2>/dev/null; do :; done
+    while iptables -D INPUT -p udp --dport 6000:19999 -j ACCEPT 2>/dev/null; do :; done
 
+    # Orden crítico: 1) Port-hopping en interfaz externa, 2) ESTABLISHED,RELATED encima
     iptables -t nat -I PREROUTING 1 -i "$DEV" -p udp -m udp --dport 6000:19999 -j DNAT --to-destination ":$PUERTO" 2>/dev/null
-    iptables -t nat -C PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
-        iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
+    iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
 
     iptables -I INPUT 1 -p udp --dport "$PUERTO" -j ACCEPT 2>/dev/null
+    iptables -I INPUT 2 -p udp --dport 6000:19999 -j ACCEPT 2>/dev/null
     iptables -t nat -C POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null || \
         iptables -t nat -A POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null
+    iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+        iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+    iptables -t mangle -C POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+        iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+    command -v ufw >/dev/null 2>&1 && { ufw allow "$PUERTO"/udp >/dev/null 2>&1; ufw allow 6000:19999/udp >/dev/null 2>&1; }
     netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 }
 
@@ -361,11 +368,15 @@ reinstalar_zivpn() {
     "cert": "$DIR_ZIVPN/zivpn.crt",
     "key": "$DIR_ZIVPN/zivpn.key",
     "log_level": "info",
-    "recv_window_conn": 33554432,
+    "recv_window_conn": 8388608,
     "recv_window_client": 67108864,
     "max_conn_client": 8192,
-    "up_mbps": 1000,
-    "down_mbps": 1000,
+    "up_mbps": 100,
+    "down_mbps": 100,
+    "ignoreClientBandwidth": true,
+    "disablePathMTUDiscovery": true,
+    "maxIdleTimeout": 60000000000,
+    "keepAlivePeriod": 10000000000,
     "disable_udp": false,
     "auth": {
         "mode": "command",

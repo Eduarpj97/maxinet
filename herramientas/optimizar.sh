@@ -468,6 +468,84 @@ ver_recursos() {
 }
 
 #=========================================================
+# 4) PERFIL DATOS MÓVILES COLOMBIA (Claro/Movistar/Tigo/WOM)
+#=========================================================
+
+optimizar_colombia_movil() {
+    clear
+    H1
+    title "🇨🇴 PERFIL DATOS MÓVILES COLOMBIA 🇨🇴"
+    H2
+    printf "${CYAN}║${WHITE}   Claro · Movistar · Tigo · WOM · Virgin${RESET}${CYAN}              ║${RESET}\n"
+    printf "${CYAN}║${WHITE}   BBR + fq_codel + conntrack 60/180 + TCPMSS + RPS${RESET}${CYAN}    ║${RESET}\n"
+    echo ""
+
+    local IFACE_NET
+    IFACE_NET=$(get_iface)
+
+    cat > /etc/sysctl.d/zz-maxinet-movil.conf << 'MOVEOF'
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.core.rmem_default = 262144
+net.core.wmem_default = 262144
+net.core.optmem_max = 2097152
+net.core.netdev_max_backlog = 16384
+net.core.somaxconn = 65535
+net.core.netdev_budget = 300
+net.core.netdev_budget_usecs = 2000
+net.core.default_qdisc = fq_codel
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_rmem = 4096 87380 67108864
+net.ipv4.tcp_wmem = 4096 65536 67108864
+net.ipv4.tcp_notsent_lowat = 4294967295
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_base_mss = 1024
+net.ipv4.udp_rmem_min = 65536
+net.ipv4.udp_wmem_min = 65536
+net.ipv4.udp_mem = 262144 524288 1048576
+net.ipv4.udp_early_demux = 1
+net.ipv4.ip_forward = 1
+net.ipv4.ip_forward_use_pmtu = 1
+net.netfilter.nf_conntrack_udp_timeout = 60
+net.netfilter.nf_conntrack_udp_timeout_stream = 180
+net.netfilter.nf_conntrack_max = 524288
+MOVEOF
+    sysctl -p /etc/sysctl.d/zz-maxinet-movil.conf >/dev/null 2>&1 || true
+    [[ -w /sys/module/nf_conntrack/parameters/hashsize ]] && echo 65536 > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true
+
+    iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+        iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+    iptables -t mangle -C POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+        iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+
+    ip link set dev "$IFACE_NET" txqueuelen 20000 2>/dev/null || true
+    ethtool -K "$IFACE_NET" tso on gso on gro on rx on tx on sg on rxhash on 2>/dev/null || true
+
+    local NUM_CPUS MASK
+    NUM_CPUS=$(nproc 2>/dev/null || echo 1)
+    MASK=$(printf "%x" $(( (1 << NUM_CPUS) - 1 )) 2>/dev/null || echo "f")
+    for _rx in /sys/class/net/"$IFACE_NET"/queues/rx-*/rps_cpus; do [[ -f "$_rx" ]] && echo "$MASK" > "$_rx" 2>/dev/null || true; done
+    echo 32768 > /proc/sys/net/core/rps_sock_flow_entries 2>/dev/null || true
+    for _rx in /sys/class/net/"$IFACE_NET"/queues/rx-*/rps_flow_cnt; do [[ -f "$_rx" ]] && echo 8192 > "$_rx" 2>/dev/null || true; done
+
+    if [[ -f /etc/zivpn/config.json ]] && command -v jq >/dev/null 2>&1; then
+        jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 8388608 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 100 | .down_mbps = 100 | .ignoreClientBandwidth = true | .disablePathMTUDiscovery = true | .maxIdleTimeout = 60000000000 | .keepAlivePeriod = 10000000000 | .disable_udp = false' \
+            /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null && mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json
+        systemctl restart zivpn.service >/dev/null 2>&1 || true
+    fi
+    systemctl restart udp-custom >/dev/null 2>&1 || true
+
+    printf "${CYAN}║${GREEN}   ✅ Perfil Datos Móviles Colombia aplicado en %s${CYAN} ║${RESET}\n" "$IFACE_NET"
+    printf "${CYAN}║${RESET}   • ZiVPN: BBR adaptativo + PMTU fijo (1200B) + KeepAlive 10s${CYAN} ║${RESET}\n"
+    printf "${CYAN}║${RESET}   • Kernel: conntrack UDP 60/180s + fq_codel + TCPMSS + RPS${CYAN}   ║${RESET}\n"
+    H3
+    echo ""
+    read -rp "$(trx '   Presiona Enter para volver al menú... ')" _
+    exec bash "$0"
+}
+
+#=========================================================
 # MENÚ PRINCIPAL
 #=========================================================
 
@@ -484,6 +562,7 @@ H2
 printf "${CYAN}║${RESET}   ${GREEN}[1]${WHITE} 🧹 Limpiar recursos  ${GRAY}(RAM/caché/swap/logs/procesos)${CYAN}║${RESET}\n"
 printf "${CYAN}║${RESET}   ${GREEN}[2]${WHITE} ⏰ Limpieza automática ${GRAY}(cada X tiempo)${CYAN}          ║${RESET}\n"
 printf "${CYAN}║${RESET}   ${GREEN}[3]${WHITE} 📊 Ver recursos      ${GRAY}(RAM/CPU/procesos top)${CYAN}     ║${RESET}\n"
+printf "${CYAN}║${RESET}   ${GREEN}[4]${WHITE} 🇨🇴 Red Móvil CO      ${GRAY}(Claro/Movistar/Tigo/WOM)${CYAN}  ║${RESET}\n"
 printf "${CYAN}║${RESET}   ${RED}[0]${WHITE} ↩ Regresar${CYAN}                                    ║${RESET}\n"
 H3
 echo ""
@@ -493,6 +572,7 @@ case "$OP" in
     1) limpiar_recursos ;;
     2) programar_limpieza ;;
     3) ver_recursos ;;
+    4) optimizar_colombia_movil ;;
     0) exec bash "$BASE/herramientas/menu.sh" ;;
     *) exec bash "$0" ;;
 esac

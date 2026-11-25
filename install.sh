@@ -356,8 +356,12 @@ if [[ -d "/etc/maxinet" ]]; then
             if [[ -f /etc/zivpn/config.json ]] && command -v jq >/dev/null 2>&1; then
                 _zv_mode=$(jq -r '.auth.mode // ""' /etc/zivpn/config.json 2>/dev/null)
                 _zv_rwc=$(jq -r '.recv_window_client // 0' /etc/zivpn/config.json 2>/dev/null)
+                _zv_rwconn=$(jq -r '.recv_window_conn // 0' /etc/zivpn/config.json 2>/dev/null)
                 _zv_ll=$(jq -r '.log_level // ""' /etc/zivpn/config.json 2>/dev/null)
-                if [[ "$_zv_mode" != "command" || "${_zv_rwc:-0}" -lt 33554432 || "$_zv_ll" != "info" ]]; then
+                _zv_icb=$(jq -r '.ignoreClientBandwidth // false' /etc/zivpn/config.json 2>/dev/null)
+                _zv_pmtu=$(jq -r '.disablePathMTUDiscovery // false' /etc/zivpn/config.json 2>/dev/null)
+                _zv_ka=$(jq -r '.keepAlivePeriod // 0' /etc/zivpn/config.json 2>/dev/null)
+                if [[ "$_zv_mode" != "command" || "${_zv_rwc:-0}" -lt 33554432 || "${_zv_rwconn:-0}" -ne 8388608 || "$_zv_ll" != "info" || "$_zv_icb" != "true" || "$_zv_pmtu" != "true" || "${_zv_ka:-0}" -eq 0 ]]; then
                     # 1) Crear auth.sh — intentar con la función del módulo, fallback inline
                     local _auth_ok=0
                     if [[ -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
@@ -395,9 +399,9 @@ exit 1
 AUTHEOF
                         chmod 700 /etc/zivpn/auth.sh 2>/dev/null
                     fi
-                    # 2) Aplicar config — separar jq/mv del restart para evitar que un restart fallo borre la config
+                    # 2) Aplicar config optimizada para datos móviles (BBR + disablePathMTUDiscovery + keepalive)
                     if [[ -x /etc/zivpn/auth.sh ]]; then
-                        if jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 33554432 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 1000 | .down_mbps = 1000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
+                        if jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 8388608 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 100 | .down_mbps = 100 | .ignoreClientBandwidth = true | .disablePathMTUDiscovery = true | .maxIdleTimeout = 60000000000 | .keepAlivePeriod = 10000000000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
                             /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null; then
                             mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json
                             systemctl restart zivpn.service >/dev/null 2>&1 || true
@@ -406,10 +410,79 @@ AUTHEOF
                         fi
                         # 3) Aplicar firewall
                         ( eval "$(sed -n '/^get_dev_interfaz()/,/^}/p; /^configurar_firewall_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; configurar_firewall_zivpn "$(jq -r '.listen // ":5667"' /etc/zivpn/config.json 2>/dev/null | tr -d ':')" ) >/dev/null 2>&1 || true
-                        echo " ✅ ZiVPN optimizado y migrado a auth mode=command (conexiones reales)."
+                        echo " ✅ ZiVPN optimizado para datos móviles (BBR + PMTU fijo + keepalive + mode=command)."
                     fi
                 fi
             fi
+            # Re-aplicar reglas limpias de UDP Custom (excluye DNS:53, QUIC:443, SlowDNS:5300) y red móvil Colombia
+            if [[ -f /root/udp/config.json || -f /etc/UDPCustom/config.json || -f /etc/systemd/system/udp-custom.service ]]; then
+                _uc_dev=$(ip -4 route show default 2>/dev/null | awk '{print $5}' | head -1)
+                [[ -z "$_uc_dev" ]] && _uc_dev=$(ip link show up 2>/dev/null | awk -F': ' '/state UP/ && $2!="lo"{print $2;exit}')
+                _uc_dev="${_uc_dev:-eth0}"
+                _uc_p=36712
+                for _ucf in /root/udp/config.json /etc/UDPCustom/config.json /usr/bin/config.json; do
+                    [[ -f "$_ucf" ]] && { _uc_p=$(grep -oP '"listen":\s*":?\K[0-9]+' "$_ucf" 2>/dev/null | head -1); break; }
+                done
+                : "${_uc_p:=36712}"
+                iptables -t nat -S PREROUTING 2>/dev/null | grep -E "DNAT.*:(2100|36712|${_uc_p})" | sed 's/^-A/-D/' | while read -r _r; do
+                    iptables -t nat $_r 2>/dev/null || true
+                done
+                while iptables -t nat -D PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null; do :; done
+                iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
+                for _rng in 1:52 54:89 91:108 110:142 144:442 444:5299 5301:5666 5668:7099 7301:9899 9901:$((_uc_p - 1)) $((_uc_p + 1)):65535; do
+                    iptables -t nat -A PREROUTING -i "$_uc_dev" -p udp -m udp --dport "$_rng" -j DNAT --to-destination ":${_uc_p}" 2>/dev/null
+                done
+                iptables -C INPUT -p udp --dport "$_uc_p" -j ACCEPT 2>/dev/null || iptables -I INPUT 1 -p udp --dport "$_uc_p" -j ACCEPT 2>/dev/null
+                iptables -t nat -C POSTROUTING -o "$_uc_dev" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o "$_uc_dev" -j MASQUERADE 2>/dev/null
+                netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
+                echo " ✅ Reglas DNAT UDP Custom actualizadas (DNS/QUIC protegidos)."
+            fi
+            # Aplicar tuning kernel Carrier Grade para datos móviles Colombia (conntrack 60/180, BBR, fq_codel, TCPMSS, RPS)
+            _net_dev=$(ip -4 route show default 2>/dev/null | awk '{print $5}' | head -1)
+            [[ -z "$_net_dev" ]] && _net_dev=$(ip link show up 2>/dev/null | awk -F': ' '/state UP/ && $2!="lo"{print $2;exit}')
+            _net_dev="${_net_dev:-eth0}"
+            cat > /etc/sysctl.d/zz-maxinet-movil.conf << 'MOVEOF'
+net.core.rmem_max = 67108864
+net.core.wmem_max = 67108864
+net.core.rmem_default = 262144
+net.core.wmem_default = 262144
+net.core.optmem_max = 2097152
+net.core.netdev_max_backlog = 16384
+net.core.somaxconn = 65535
+net.core.netdev_budget = 300
+net.core.netdev_budget_usecs = 2000
+net.core.default_qdisc = fq_codel
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_rmem = 4096 87380 67108864
+net.ipv4.tcp_wmem = 4096 65536 67108864
+net.ipv4.tcp_notsent_lowat = 4294967295
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_base_mss = 1024
+net.ipv4.udp_rmem_min = 65536
+net.ipv4.udp_wmem_min = 65536
+net.ipv4.udp_mem = 262144 524288 1048576
+net.ipv4.udp_early_demux = 1
+net.ipv4.ip_forward = 1
+net.ipv4.ip_forward_use_pmtu = 1
+net.netfilter.nf_conntrack_udp_timeout = 60
+net.netfilter.nf_conntrack_udp_timeout_stream = 180
+net.netfilter.nf_conntrack_max = 524288
+MOVEOF
+            sysctl -p /etc/sysctl.d/zz-maxinet-movil.conf >/dev/null 2>&1 || true
+            [[ -w /sys/module/nf_conntrack/parameters/hashsize ]] && echo 65536 > /sys/module/nf_conntrack/parameters/hashsize 2>/dev/null || true
+            iptables -t mangle -C FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+                iptables -t mangle -A FORWARD -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+            iptables -t mangle -C POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null || \
+                iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu 2>/dev/null
+            ip link set dev "$_net_dev" txqueuelen 20000 2>/dev/null || true
+            ethtool -K "$_net_dev" tso on gso on gro on rx on tx on sg on rxhash on 2>/dev/null || true
+            _ncpu=$(nproc 2>/dev/null || echo 1)
+            _rmask=$(printf '%x' $(( (1 << _ncpu) - 1 )) 2>/dev/null || echo f)
+            for _rx in /sys/class/net/"$_net_dev"/queues/rx-*/rps_cpus; do [[ -f "$_rx" ]] && echo "$_rmask" > "$_rx" 2>/dev/null || true; done
+            echo 32768 > /proc/sys/net/core/rps_sock_flow_entries 2>/dev/null || true
+            for _rx in /sys/class/net/"$_net_dev"/queues/rx-*/rps_flow_cnt; do [[ -f "$_rx" ]] && echo 8192 > "$_rx" 2>/dev/null || true; done
+            echo " ✅ Red optimizada para datos móviles Colombia (conntrack 60/180, BBR, fq_codel, TCPMSS)."
             # v8.2.1 FIX: tras re-desplegar el árbol, recrear SIEMPRE los launchers
             # seguros (menu/protocolos/herramientas/usuarios) y el banner 3D de marca.
             # Motivo: instalaciones viejas (7.4.5) no dejan /usr/local/bin/usuarios ni
@@ -1702,31 +1775,41 @@ run_cmd "Limpiando historial" "$LINENO" "rm -f /root/.bash_history; history -c 2
 step "Optimizando red (BBR + FQ + buffers)..."
 
 cat > /etc/sysctl.d/99-z-Maxinet.conf << 'EOF'
-net.core.default_qdisc=fq
+net.core.default_qdisc=fq_codel
 net.ipv4.tcp_congestion_control=bbr
 net.core.rmem_max=67108864
 net.core.wmem_max=67108864
 net.core.rmem_default=262144
 net.core.wmem_default=262144
-net.ipv4.tcp_rmem=4096 262144 67108864
-net.ipv4.tcp_wmem=4096 262144 67108864
+net.core.optmem_max=2097152
+net.ipv4.tcp_rmem=4096 87380 67108864
+net.ipv4.tcp_wmem=4096 65536 67108864
+net.ipv4.tcp_notsent_lowat=4294967295
 net.ipv4.tcp_mtu_probing=1
+net.ipv4.tcp_base_mss=1024
 net.ipv4.tcp_slow_start_after_idle=0
 net.ipv4.tcp_low_latency=1
-net.core.somaxconn=8192
+net.core.somaxconn=65535
 net.core.netdev_max_backlog=16384
+net.core.netdev_budget=300
+net.core.netdev_budget_usecs=2000
 net.ipv4.tcp_max_syn_backlog=8192
-net.ipv4.tcp_fin_timeout=15
+net.ipv4.tcp_fin_timeout=10
 net.ipv4.tcp_keepalive_time=300
 net.ipv4.tcp_keepalive_intvl=15
 net.ipv4.tcp_keepalive_probes=5
 net.ipv4.tcp_tw_reuse=1
-net.ipv4.ip_local_port_range=1024 65000
+net.ipv4.ip_local_port_range=1024 65535
 net.ipv4.tcp_timestamps=1
-net.ipv4.udp_mem=32768 65536 262144
+net.ipv4.udp_rmem_min=65536
+net.ipv4.udp_wmem_min=65536
+net.ipv4.udp_mem=262144 524288 1048576
+net.ipv4.udp_early_demux=1
+net.ipv4.ip_forward=1
+net.ipv4.ip_forward_use_pmtu=1
 net.netfilter.nf_conntrack_max=524288
-net.netfilter.nf_conntrack_udp_timeout=5
-net.netfilter.nf_conntrack_udp_timeout_stream=15
+net.netfilter.nf_conntrack_udp_timeout=60
+net.netfilter.nf_conntrack_udp_timeout_stream=180
 vm.swappiness=10
 vm.vfs_cache_pressure=50
 vm.dirty_ratio=10
