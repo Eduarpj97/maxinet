@@ -42,20 +42,36 @@ _drop_c=$(( _drop_p > 1 ? _drop_p - 1 : 0 ))
 
 _udp_c=0
 _zi_c=0
+# Detectar puerto UDP Custom real (config.json → fallback 36712)
+_uc_port=36712
+for _ucf in /root/udp/config.json /etc/UDPCustom/config.json /usr/bin/config.json; do
+    [[ -f "$_ucf" ]] && { _uc_port=$(grep -oP '"listen":\s*":?\K[0-9]+' "$_ucf" 2>/dev/null | head -1); break; }
+done
+: "${_uc_port:=36712}"
+# Detectar puerto ZiVPN real (config.json → fallback 5667)
+_zv_port=5667
+[[ -f /etc/zivpn/config.json ]] && _zv_port=$(grep -oP '"listen":\s*":?\K[0-9]+' /etc/zivpn/config.json 2>/dev/null | head -1)
+: "${_zv_port:=5667}"
 if [[ -r /proc/net/nf_conntrack ]]; then
-    read -r _udp_c _zi_c < <(awk '/dport=36712/{u++} /dport=5667/{z++} END{print u+0, z+0}' /proc/net/nf_conntrack 2>/dev/null)
+    _ct_line=$(awk -v up="$_uc_port" -v zp="$_zv_port" '
+        BEGIN { ukey="dport="up; zkey="dport="zp }
+        index($0,ukey) { u++ }
+        index($0,zkey) { z++ }
+        END {printf "%d %d", u+0, z+0}
+    ' /proc/net/nf_conntrack 2>/dev/null) || true
+    read -r _udp_c _zi_c <<< "$_ct_line"
 elif command -v conntrack >/dev/null 2>&1; then
-    _udp_c=$(conntrack -L -p udp --dport 36712 2>/dev/null | grep -cv UNREPLIED || true)
-    _zi_c=$(conntrack -L -p udp --dport 5667 2>/dev/null | grep -cv UNREPLIED || true)
+    _udp_c=$(conntrack -L -p udp --dport "$_uc_port" 2>/dev/null | grep -cv UNREPLIED) || _udp_c=0
+    _zi_c=$(conntrack -L -p udp --dport "$_zv_port" 2>/dev/null | grep -cv UNREPLIED) || _zi_c=0
 fi
-_udp_c="${_udp_c//[^0-9]/}"; _udp_c="${_udp_c:-0}"
-_zi_c="${_zi_c//[^0-9]/}"; _zi_c="${_zi_c:-0}"
+_udp_c="${_udp_c//[^0-9]/}"; : "${_udp_c:=0}"
+_zi_c="${_zi_c//[^0-9]/}"; : "${_zi_c:=0}"
 _bad_c=0
 if command -v ss >/dev/null 2>&1; then
     _bad_c=$(ss -Htn sport = :7200 state established 2>/dev/null | wc -l)
 fi
-_bad_c="${_bad_c//[^0-9]/}"; _bad_c="${_bad_c:-0}"
-ONLINE=$(( _ssh_c + _drop_c + _udp_c + _zi_c + _bad_c ))
+_bad_c="${_bad_c//[^0-9]/}"; : "${_bad_c:=0}"
+ONLINE=$(( ${_ssh_c:-0} + ${_drop_c:-0} + ${_udp_c:-0} + ${_zi_c:-0} + ${_bad_c:-0} ))
 
 # ── Colores (ANSI 256) ──────────────────────────
 C_RESET="\e[0m"

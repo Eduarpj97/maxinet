@@ -309,12 +309,21 @@ done < <(ps -C sshd -o args= 2>/dev/null | grep "\[priv\]" | awk -F'sshd: ' '{pr
 # ── Detección ultrarrápida de flujos UDP en kernel (<2ms) ──
 _hay_udp_kernel=0
 _hay_zi_kernel=0
+# Detectar puertos reales
+_uc_port=36712
+for _ucf in /root/udp/config.json /etc/UDPCustom/config.json /usr/bin/config.json; do
+    [[ -f "$_ucf" ]] && { _uc_port=$(grep -oP '"listen":\s*":?\K[0-9]+' "$_ucf" 2>/dev/null | head -1); break; }
+done
+: "${_uc_port:=36712}"
+_zv_port=5667
+[[ -f /etc/zivpn/config.json ]] && _zv_port=$(grep -oP '"listen":\s*":?\K[0-9]+' /etc/zivpn/config.json 2>/dev/null | head -1)
+: "${_zv_port:=5667}"
 if [[ -r /proc/net/nf_conntrack ]]; then
-    grep -q 'dport=36712' /proc/net/nf_conntrack 2>/dev/null && _hay_udp_kernel=1
-    grep -q 'dport=5667' /proc/net/nf_conntrack 2>/dev/null && _hay_zi_kernel=1
+    grep -q "dport=${_uc_port}" /proc/net/nf_conntrack 2>/dev/null && _hay_udp_kernel=1
+    grep -q "dport=${_zv_port}" /proc/net/nf_conntrack 2>/dev/null && _hay_zi_kernel=1
 elif command -v conntrack >/dev/null 2>&1; then
-    conntrack -L -p udp --dport 36712 2>/dev/null | grep -qv UNREPLIED && _hay_udp_kernel=1
-    conntrack -L -p udp --dport 5667 2>/dev/null | grep -qv UNREPLIED && _hay_zi_kernel=1
+    conntrack -L -p udp --dport "$_uc_port" 2>/dev/null | grep -qv UNREPLIED && _hay_udp_kernel=1
+    conntrack -L -p udp --dport "$_zv_port" 2>/dev/null | grep -qv UNREPLIED && _hay_zi_kernel=1
 fi
 
 if [[ -f "$BASE/herramientas/conexiones.sh" ]]; then
