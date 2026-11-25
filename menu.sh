@@ -1009,8 +1009,8 @@ EOF
     else
         echo -e "${RED}❌ trafico.sh ${ERR_FILE_NOT_FOUND:-no encontrado}${RESET}"
         sleep 2
-        exec bash "$BASE/menu.sh"
     fi
+    exec bash "$BASE/menu.sh"
 ;;
 
 15)
