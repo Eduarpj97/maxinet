@@ -50,8 +50,11 @@ STATE="$SISTEMA/network_state.conf"
 
 source "$CONFIG"
 
-# v7.3.11: dominio efectivo CF — manual (config.conf) o automatico (cf.conf CF_SUB_FQDN)
+# v7.3.11: dominio efectivo CF — manual (config.conf), /etc/maxinet/dominio o automatico (cf.conf CF_SUB_FQDN)
 _DOM_EFF="${SERVER_DOMAIN:-}"
+if [[ -z "$_DOM_EFF" && -s "$BASE/dominio" ]]; then
+    _DOM_EFF="$(tr -d ' \r\n' < "$BASE/dominio" 2>/dev/null)"
+fi
 if [[ -z "$_DOM_EFF" && -f "$BASE/cf.conf" ]]; then
     _CF_SUB_FQDN="$(grep -E '^CF_SUB_FQDN=' "$BASE/cf.conf" 2>/dev/null | tail -1 | cut -d= -f2- | tr -d '"' )"
     _DOM_EFF="$_CF_SUB_FQDN"
@@ -87,10 +90,10 @@ BLUE="${MV_BLU:-\e[1;94m}"; MAGENTA="${MV_MAG:-\e[1;95m}"; CYAN="${MV_CYN:-\e[1;
 #=========================================================
 
 LINE(){ mv_line; }
-TOP(){ local PW; PW=$(mv_panel_width); printf "%b┌%b%s%b┐%b\n" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 $PW))" "$MV_MAG" "$MV_R"; }
+TOP(){ local PW PL; PW=$(mv_panel_width); PL=$(mv_panel_pad); printf "%*s%b┌%b%s%b┐%b\n" "$PL" "" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 $PW))" "$MV_MAG" "$MV_R"; }
 MID(){ mv_panel_mid; }
 BOT(){ mv_panel_bot; }
-BAR(){ printf "%b│%b%*s%b│%b\n" "$MV_MAG" "$MV_R" "$(mv_panel_width)" "" "$MV_MAG" "$MV_R"; }
+BAR(){ local PW PL; PW=$(mv_panel_width); PL=$(mv_panel_pad); printf "%*s%b│%b%*s%b│%b\n" "$PL" "" "$MV_MAG" "$MV_R" "$PW" "" "$MV_MAG" "$MV_R"; }
 
 #=========================================================================
 # (banner_maxinet y mv_brand_header viven en lib/ui.sh — reutilizables
@@ -598,8 +601,9 @@ mv_panel_bot
 mv_sep_rainbow
 
 # ── USUARIOS CONECTADOS (los servicios VPN viven en 🚀 Protocolos)
-printf "   👤 ${GREEN}%s${RESET} ${MENU_ONLINE:-online}  ${GRAY}· ${MENU_CONN:-Conex}${RESET} ${GREEN}%s${RESET}\n" \
-    "$ONLINE_USERS" "$TOTAL_CONN"
+_pl_conn=$(mv_panel_pad 2>/dev/null || echo 2)
+printf "%*s 👤 ${GREEN}%s${RESET} ${MENU_ONLINE:-online}  ${GRAY}· ${MENU_CONN:-Conex}${RESET} ${GREEN}%s${RESET}\n" \
+    "$_pl_conn" "" "$ONLINE_USERS" "$TOTAL_CONN"
 
 DSEP
 

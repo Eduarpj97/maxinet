@@ -31,7 +31,7 @@
 #   mv_sep_rainbow                            # separador arcoíris
 #=============================================================
 
-[[ -n "$MV_UI_LOADED" ]] && return 0
+[[ -n "${MV_UI_LOADED:-}" ]] && return 0
 MV_UI_LOADED=1
 
 # ── Paleta PREMIUM (ANSI-256, igual que banner v2.4) ──
@@ -370,13 +370,14 @@ mv_brand_header(){
 
 # ── Sección interior premium:  ┃ ◆ TÍTULO ──────────── ┃ ──
 mv_section(){
-    local W txt vis dash
-    W=$(mv_cols)
+    local PW PL txt vis dash
+    PW=$(mv_panel_width)
+    PL=$(mv_panel_pad)
     txt="${1:-}"
     vis=$(mv_w "◆ ${txt}")
-    dash=$(( W - vis - 8 )); (( dash < 1 )) && dash=1
-    printf "\n ${MV_MAG}┃${MV_R}${MV_GLD}◆${MV_R} ${MV_BLD}${MV_WHT}%s${MV_R} ${MV_DIM}%s${MV_R}\n" \
-        "$txt" "$(printf '─%.0s' $(seq 1 "$dash"))"
+    dash=$(( PW - vis - 4 )); (( dash < 1 )) && dash=1
+    printf "\n%*s ${MV_MAG}┃${MV_R}${MV_GLD}◆${MV_R} ${MV_BLD}${MV_WHT}%s${MV_R} ${MV_DIM}%s${MV_R}\n" \
+        "$PL" "" "$txt" "$(printf '─%.0s' $(seq 1 "$dash"))"
 }
 
 # ── Clave/valor alineado premium:   label ······ valor ──
@@ -408,92 +409,109 @@ mv_pill(){
 #   mv_panel_bot                   →  └──────────────────────┘
 # ══════════════════════════════════════════════════════════
 mv_panel_width(){
-    mv_cols
+    local C PW
+    C=$(mv_cols)
+    PW=58
+    (( C < PW + 4 )) && PW=$(( C - 4 ))
+    (( PW < 26 )) && PW=26
+    echo "$PW"
+}
+
+mv_panel_pad(){
+    local C PW PL
+    C=$(mv_cols)
+    PW=$(mv_panel_width)
+    PL=$(( (C - PW - 2) / 2 ))
+    (( PL < 0 )) && PL=0
+    echo "$PL"
 }
 
 mv_panel_top(){
-    local TITLE="$1" PW vis pad rpad
+    local TITLE="$1" PW PL vis pad rpad
     PW=$(mv_panel_width)
+    PL=$(mv_panel_pad)
     vis=$(mv_w "$TITLE")
     pad=$(( (PW - vis - 4) / 2 )); (( pad < 1 )) && pad=1
     rpad=$(( PW - vis - 4 - pad )); (( rpad < 1 )) && rpad=1
-    printf "%b┌%b%s%b◆%b %b%s%b %b◆%b%s%b┐%b\n" \
-        "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 "$pad"))" \
+    printf "%*s%b┌%b%s%b◆%b %b%s%b %b◆%b%s%b┐%b\n" \
+        "$PL" "" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 "$pad"))" \
         "$MV_GLD" "$MV_R" "$MV_BLD" "$TITLE" "$MV_R" "$MV_GLD" "$MV_R" \
         "$(printf '─%.0s' $(seq 1 "$rpad"))" "$MV_MAG" "$MV_R"
 }
 
 mv_prow(){
-    local icon="$1" label="$2" val="$3" PW vis pad
+    local icon="$1" label="$2" val="$3" PW PL content vis pad
     PW=$(mv_panel_width)
-    vis=$(mv_w " ${icon} ${label} ")
-    pad=$(( PW - vis - 3 - ${#val} )); (( pad < 1 )) && pad=1
-    printf "%b│ ${MV_ORA}%s${MV_R} ${MV_CYN}%s${MV_R} ${MV_DIM}·${MV_R} ${MV_WHT}%s${MV_R}%*s%b│%b\n" \
-        "$MV_MAG" "$icon" "$label" "$val" "$pad" "" "$MV_MAG" "$MV_R"
+    PL=$(mv_panel_pad)
+    content=" ${MV_ORA}${icon}${MV_R} ${MV_CYN}${label}${MV_R} ${MV_DIM}·${MV_R} ${MV_WHT}${val}${MV_R}"
+    vis=$(mv_w "$content")
+    pad=$(( PW - vis )); (( pad < 0 )) && pad=0
+    printf "%*s%b│%b%b%*s%b│%b\n" \
+        "$PL" "" "$MV_MAG" "$MV_R" "$content" "$pad" "" "$MV_MAG" "$MV_R"
 }
 
 # ── Fila con BARRAS DE PROGRESO en color (v2.4 TÉCNICA 2) ──
 # Uso: mv_prow_bars "RAM" "56" "CPU" "88"
 #   │ RAM ▮▮▮▮░░░░░░░░ 56%   CPU ▮▮▮▮▮▮▮▮░░ 88%  │
-# Difiere de mv_prow: calcula el padding con mv_w (limpia ANSI),
-# porque aqui el "valor" contiene códigos de color (mv_progress).
 mv_prow_bars(){
-    local l1="$1" p1="$2" l2="$3" p2="$4" PW b1 b2 vis pad
+    local l1="$1" p1="$2" l2="$3" p2="$4" PW PL b1 b2 content vis pad
     PW=$(mv_panel_width)
+    PL=$(mv_panel_pad)
     b1=$(mv_progress "${p1:-0}" 100)
     b2=$(mv_progress "${p2:-0}" 100)
-    # ancho visible entre borde izquierdo y padding derecho:
-    # l1 + espacio + barra1 + 2 espacios + l2 + espacio + barra2
-    vis=$(( $(mv_w "$l1") + 1 + $(mv_w "$b1") + 2 + $(mv_w "$l2") + 1 + $(mv_w "$b2") ))
-    pad=$(( PW - vis )); (( pad < 1 )) && pad=1
-    printf "%b│ %b%s%b %b%b%b  %b%s%b %b%b%b%*s%b│%b\n" \
-        "$MV_MAG" "$MV_CYN" "$l1" "$MV_R" "$MV_WHT" "$b1" "$MV_R" \
-        "$MV_CYN" "$l2" "$MV_R" "$MV_WHT" "$b2" "$MV_R" \
-        "$pad" "" "$MV_MAG" "$MV_R"
+    content=" ${MV_CYN}${l1}${MV_R} ${MV_WHT}${b1}${MV_R}  ${MV_CYN}${l2}${MV_R} ${MV_WHT}${b2}${MV_R}"
+    vis=$(mv_w "$content")
+    pad=$(( PW - vis )); (( pad < 0 )) && pad=0
+    printf "%*s%b│%b%b%*s%b│%b\n" \
+        "$PL" "" "$MV_MAG" "$MV_R" "$content" "$pad" "" "$MV_MAG" "$MV_R"
 }
 
 mv_panel_mid(){
-    local PW TITLE="$1" vis pad rpad
+    local PW PL TITLE="${1:-}" vis pad rpad
     PW=$(mv_panel_width)
+    PL=$(mv_panel_pad)
     if [[ -n "$TITLE" ]]; then
         vis=$(mv_w "$TITLE")
         pad=$(( (PW - vis - 4) / 2 )); (( pad < 1 )) && pad=1
         rpad=$(( PW - vis - 4 - pad )); (( rpad < 1 )) && rpad=1
-        printf "%b├%b%s%b◆%b %b%s%b %b◆%b%s%b┤%b\n" \
-            "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 "$pad"))" \
+        printf "%*s%b├%b%s%b◆%b %b%s%b %b◆%b%s%b┤%b\n" \
+            "$PL" "" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 "$pad"))" \
             "$MV_GLD" "$MV_R" "$MV_BLD" "$TITLE" "$MV_R" "$MV_GLD" "$MV_R" \
             "$(printf '─%.0s' $(seq 1 "$rpad"))" "$MV_MAG" "$MV_R"
     else
-        printf "%b├%b%s%b┤%b\n" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 $PW))" "$MV_MAG" "$MV_R"
+        printf "%*s%b├%b%s%b┤%b\n" "$PL" "" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 $PW))" "$MV_MAG" "$MV_R"
     fi
 }
 
 mv_panel_bot(){
-    local PW
+    local PW PL
     PW=$(mv_panel_width)
-    printf "%b└%b%s%b┘%b\n" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 $PW))" "$MV_MAG" "$MV_R"
+    PL=$(mv_panel_pad)
+    printf "%*s%b└%b%s%b┘%b\n" "$PL" "" "$MV_MAG" "$MV_MAG" "$(printf '─%.0s' $(seq 1 $PW))" "$MV_MAG" "$MV_R"
 }
 
 # ── Fila de MENÚ dentro de panel:  │ [1] 🔥 Opción ......... │ ──
 mv_prow_menu(){
-    local txt="$1" PW vis pad
+    local txt="$1" PW PL vis pad
     PW=$(mv_panel_width)
+    PL=$(mv_panel_pad)
     vis=$(mv_w "$txt")
-    pad=$(( PW - vis - 2 )); (( pad < 1 )) && pad=1
-    printf "%b│%b%b%s%b%*s%b│%b\n" "$MV_MAG" "$MV_R" "$MV_WHT" "$txt" "$MV_R" "$pad" "" "$MV_MAG" "$MV_R"
+    pad=$(( PW - vis )); (( pad < 0 )) && pad=0
+    printf "%*s%b│%b%b%s%b%*s%b│%b\n" "$PL" "" "$MV_MAG" "$MV_R" "$MV_WHT" "$txt" "$MV_R" "$pad" "" "$MV_MAG" "$MV_R"
 }
 
 # ── Fila CENTRADA dentro de panel (mensajes / gracias) ──
 mv_prow_center(){
-    local txt="$1" PW vis pad rest
+    local txt="$1" PW PL vis pad rest
     PW=$(mv_panel_width)
+    PL=$(mv_panel_pad)
     vis=$(mv_w "$txt")
-    pad=$(( (PW - 2 - vis) / 2 )); (( pad < 0 )) && pad=0
-    rest=$(( PW - 2 - vis - pad )); (( rest < 0 )) && rest=0
-    printf "%b│%b%b%*s%b%b%s%b%b%*s%b%b│%b\n" \
-        "$MV_MAG" "$MV_R" "$MV_GLD" "$pad" "" "$MV_R" \
+    pad=$(( (PW - vis) / 2 )); (( pad < 0 )) && pad=0
+    rest=$(( PW - vis - pad )); (( rest < 0 )) && rest=0
+    printf "%*s%b│%b%*s%b%s%b%*s%b│%b\n" \
+        "$PL" "" "$MV_MAG" "$MV_R" "$pad" "" \
         "$MV_BLD" "$txt" "$MV_R" \
-        "$MV_GLD" "$rest" "" "$MV_R" "$MV_MAG" "$MV_R"
+        "$rest" "" "$MV_MAG" "$MV_R"
 }
 
 # ── Footer de contactos premium (despedida banner oficial) ──

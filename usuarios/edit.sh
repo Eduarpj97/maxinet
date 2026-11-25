@@ -42,9 +42,14 @@ while true; do
 
 clear
 
-echo -e "${CYAN}╔══════════════════════════════════════════════════════╗${RESET}"
-echo -e "${CYAN}║${YELLOW}           ♻ EDITAR / RENOVAR USUARIO SSH          ${CYAN}║${RESET}"
-echo -e "${CYAN}╠══════════════════════════════════════════════════════╣${RESET}"
+if declare -F mv_header >/dev/null 2>&1; then
+    mv_header "♻ EDITAR / RENOVAR USUARIO SSH" "Modificación de cuentas y límites" "v3.1.5"
+else
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${YELLOW}           ♻ EDITAR / RENOVAR USUARIO SSH             ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════╝${RESET}"
+fi
+echo ""
 
 USERS=$(awk -F: '$3>=1000 && $1!="nobody"{print $1}' /etc/passwd)
 
@@ -277,14 +282,22 @@ sleep 3
 
 clear
 
-echo -e "${YELLOW}╔══════════════════════════════════════════════════════╗${RESET}"
-echo -e "${YELLOW}║        👥 LÍMITE DE CONEXIONES SIMULTÁNEAS           ║${RESET}"
-echo -e "${YELLOW}╠══════════════════════════════════════════════════════╣${RESET}"
-echo -e "${WHITE} Usuario          : ${GREEN}$USER${RESET}"
-echo -e "${WHITE} Límite actual    : ${GREEN}$CONNLIM_H${RESET}"
-echo -e "${GRAY} Las conexiones que excedan el límite se cortan,${RESET}"
-echo -e "${GRAY} la cuenta NO se bloquea. 0 = ilimitado.${RESET}"
-echo -e "${YELLOW}╚══════════════════════════════════════════════════════╝${RESET}"
+if declare -F mv_panel_top >/dev/null 2>&1; then
+    mv_panel_top "👥 LÍMITE DE CONEXIONES SIMULTÁNEAS"
+    mv_prow "👤" "Usuario" "$USER"
+    mv_prow "🔢" "Límite actual" "$CONNLIM_H"
+    mv_panel_bot
+    echo -e "  ${GRAY}Las conexiones que excedan el límite se cortan; la cuenta NO se bloquea (0 = ilimitado).${RESET}"
+else
+    echo -e "${YELLOW}╔══════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${YELLOW}║        👥 LÍMITE DE CONEXIONES SIMULTÁNEAS           ║${RESET}"
+    echo -e "${YELLOW}╠══════════════════════════════════════════════════════╣${RESET}"
+    echo -e "${WHITE} Usuario          : ${GREEN}$USER${RESET}"
+    echo -e "${WHITE} Límite actual    : ${GREEN}$CONNLIM_H${RESET}"
+    echo -e "${GRAY} Las conexiones que excedan el límite se cortan,${RESET}"
+    echo -e "${GRAY} la cuenta NO se bloquea. 0 = ilimitado.${RESET}"
+    echo -e "${YELLOW}╚══════════════════════════════════════════════════════╝${RESET}"
+fi
 
 read -rp "$(echo -e "${GREEN}Nuevo límite de conexiones [0]: ${RESET}")" NEW_CONNLIM
 

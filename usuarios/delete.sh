@@ -34,9 +34,14 @@ while true; do
 
 clear
 
-echo -e "${CYAN}╔══════════════════════════════════════════════════════╗${RESET}"
-echo -e "${CYAN}║${RED}             🗑 ELIMINAR USUARIOS SSH              ${CYAN}║${RESET}"
-echo -e "${CYAN}╠══════════════════════════════════════════════════════╣${RESET}"
+if declare -F mv_header >/dev/null 2>&1; then
+    mv_header "🗑 ELIMINAR USUARIOS SSH" "Gestión de cuentas del sistema" "v3.1.5"
+else
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════╗${RESET}"
+    echo -e "${CYAN}║${RED}             🗑 ELIMINAR USUARIOS SSH                 ${CYAN}║${RESET}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════╝${RESET}"
+fi
+echo ""
 
 USERS=$(awk -F: '$3>=1000 && $1!="nobody"{print $1}' /etc/passwd)
 

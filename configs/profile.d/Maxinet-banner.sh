@@ -1,6 +1,6 @@
 #!/bin/bash
 #==================================================
-# Maxinet Network - Premium Welcome Banner v3.1.4
+# Maxinet Network - Premium Welcome Banner v3.1.5
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
 [[ $- != *i* ]] && return
@@ -14,7 +14,9 @@ TG_CHANNEL=""
 TG_GROUP=""
 if [[ -f /etc/maxinet/config.conf ]]; then
     source /etc/maxinet/config.conf
-    DOMAIN="${SERVER_DOMAIN:-"$IP_LOCAL"}"
+    DOMAIN="${SERVER_DOMAIN:-}"
+    [[ -z "$DOMAIN" && -s /etc/maxinet/dominio ]] && DOMAIN="$(tr -d ' \r\n' < /etc/maxinet/dominio 2>/dev/null)"
+    [[ -z "$DOMAIN" ]] && DOMAIN="$IP_LOCAL"
     IP_LOCAL="${SERVER_PUB_IP:-"$IP_LOCAL"}"
     TG_CHANNEL="${TG_CHANNEL:-}"
     TG_GROUP="${TG_GROUP:-}"

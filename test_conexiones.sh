@@ -267,7 +267,29 @@ grep -qF 'sshd:[[:space:]]*root' menu.sh \
 grep -q "cat > /etc/profile.d/Maxinet-banner.sh << 'BEOF'" install.sh \
     && fail "install.sh no debe contener el heredoc lento heredado" || ok "install.sh: libre de heredoc lento de banner"
 
-echo "════ 14. Sintaxis bash -n de toda la suite ════"
+echo "════ 14. Alineación de recuadros y persistencia de dominio (v3.1.5) ════"
+(
+    export COLUMNS=80
+    source ./lib/ui.sh
+    w_top=$(mv_w "$(mv_panel_top "SERVIDOR")")
+    w_row=$(mv_w "$(mv_prow "🖥" "Sistema" "Ubuntu 24.04")")
+    w_bar=$(mv_w "$(mv_prow_bars "RAM" "45" "CPU" "12")")
+    w_mid=$(mv_w "$(mv_panel_mid "SEGURIDAD")")
+    w_bot=$(mv_w "$(mv_panel_bot)")
+    [[ "$w_top" == "$w_row" && "$w_top" == "$w_bar" && "$w_top" == "$w_mid" && "$w_top" == "$w_bot" ]] \
+        && exit 0 || { echo "top=$w_top row=$w_row bar=$w_bar mid=$w_mid bot=$w_bot" >&2; exit 1; }
+) && ok "ui.sh: ancho idéntico en todos los elementos del recuadro" || fail "ui.sh: desalineación en recuadros"
+
+grep -q 'state.tar' install.sh \
+    && ok "install.sh: restauración relativa exacta sin duplicar rutas" || fail "install.sh: falta restauración limpia state.tar"
+
+grep -q 'echo "\$NEWDOMAIN" > "\$BASE/dominio"' herramientas/change-domain.sh \
+    && ok "change-domain.sh: sincroniza /etc/maxinet/dominio" || fail "change-domain.sh: no guarda /etc/maxinet/dominio"
+
+grep -q 'wc -c' updater.sh \
+    && fail "updater.sh no debe usar wc -c para recuadros UTF-8" || ok "updater.sh: libre de cálculos rotos con wc -c"
+
+echo "════ 15. Sintaxis bash -n de toda la suite ════"
 for f in install.sh updater.sh menu.sh configs/profile.d/Maxinet-banner.sh \
          herramientas/*.sh protocolos/*.sh usuarios/*.sh lib/*.sh; do
     [[ -f "$f" ]] || continue

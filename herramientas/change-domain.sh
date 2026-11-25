@@ -52,9 +52,11 @@ else
 fi
 echo
 
-CURRENT_DOMAIN="${SERVER_DOMAIN:-NO CONFIGURADO}"
+CURRENT_DOMAIN="${SERVER_DOMAIN:-$(cat "$BASE/dominio" 2>/dev/null || echo "NO CONFIGURADO")}"
+[[ -z "$CURRENT_DOMAIN" ]] && CURRENT_DOMAIN="NO CONFIGURADO"
 
-PUBLIC_IP=$(curl -4 -s https://api.ipify.org)
+PUBLIC_IP="${SERVER_PUB_IP:-}"
+[[ -z "$PUBLIC_IP" || "$PUBLIC_IP" == "-" ]] && PUBLIC_IP=$(curl -4 -s --max-time 3 https://api.ipify.org 2>/dev/null || hostname -I | awk '{print $1}')
 
 echo -e "${WHITE}Dominio actual : ${GREEN}$CURRENT_DOMAIN${RESET}"
 echo -e "${WHITE}IP Pública     : ${GREEN}$PUBLIC_IP${RESET}"
@@ -65,6 +67,7 @@ read -rp "$(trx 'Nuevo dominio: ')" NEWDOMAIN
 [[ -z "$NEWDOMAIN" ]] && {
     echo
     echo -e "${RED}Debe ingresar un dominio.${RESET}"
+    sleep 2
     exit 1
 }
 
@@ -76,6 +79,7 @@ if ! [[ "$NEWDOMAIN" =~ ^([a-zA-Z0-9-]+\.)+[a-zA-Z]{2,}$ ]]; then
 
     echo
     echo -e "${RED}Formato de dominio inválido.${RESET}"
+    sleep 2
     exit 1
 
 fi
@@ -83,25 +87,21 @@ fi
 echo
 echo -e "${CYAN}Verificando DNS...${RESET}"
 
-DOMAIN_IP=$(dig +short "$NEWDOMAIN" A | head -1)
+DOMAIN_IP=$(dig +short "$NEWDOMAIN" A 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
 
 if [[ -z "$DOMAIN_IP" ]]; then
-
     echo
-    echo -e "${RED}El dominio no tiene un registro A.${RESET}"
-    exit 1
-
-fi
-
-if [[ "$DOMAIN_IP" != "$PUBLIC_IP" ]]; then
-
+    echo -e "${YELLOW}⚠️ El dominio aún no resuelve un registro A (o está propagándose).${RESET}"
+    read -rp "$(echo -e "${CYAN}¿Deseas guardarlo de todas formas? [S/n]: ${RESET}")" FORZAR_SIN_A
+    [[ "$FORZAR_SIN_A" =~ ^[nN]$ ]] && exit 1
+elif [[ "$DOMAIN_IP" != "$PUBLIC_IP" ]]; then
     echo
-    echo -e "${RED}El dominio no apunta a esta VPS.${RESET}"
-    echo
-    echo "IP VPS      : $PUBLIC_IP"
-    echo "IP Dominio  : $DOMAIN_IP"
-    exit 1
-
+    echo -e "${YELLOW}⚠️ El dominio resuelve a ${WHITE}$DOMAIN_IP${YELLOW} (tu VPS es ${WHITE}$PUBLIC_IP${YELLOW}).${RESET}"
+    if dig +short NS "$NEWDOMAIN" 2>/dev/null | grep -qi cloudflare || dig +short NS "${NEWDOMAIN#*.}" 2>/dev/null | grep -qi cloudflare; then
+        echo -e "${GREEN}✔ Cloudflare detectado (normal si usas Proxy/CDN nube naranja).${RESET}"
+    fi
+    read -rp "$(echo -e "${CYAN}¿Deseas guardar y usar este dominio de todas formas? [S/n]: ${RESET}")" FORZAR_CF
+    [[ "$FORZAR_CF" =~ ^[nN]$ ]] && exit 1
 fi
 
 #---------------------------------------------------------
@@ -195,7 +195,7 @@ echo
 echo -e "${CYAN}Actualizando configuración...${RESET}"
 
 #---------------------------------------------------------
-# Guardar dominio en config.conf
+# Guardar dominio en config.conf y archivos del sistema
 #---------------------------------------------------------
 
 if grep -q '^SERVER_DOMAIN=' "$CONFIG"; then
@@ -203,6 +203,8 @@ if grep -q '^SERVER_DOMAIN=' "$CONFIG"; then
 else
     echo "SERVER_DOMAIN=\"$NEWDOMAIN\"" >> "$CONFIG"
 fi
+echo "$NEWDOMAIN" > "$BASE/dominio"
+rm -f /tmp/_maxinet_cf_ns /tmp/_maxinet_noip_check 2>/dev/null
 
 #---------------------------------------------------------
 # Re-detectar Cloudflare (en vivo) y actualizar config.conf

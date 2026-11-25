@@ -229,10 +229,16 @@ fi
 # =============================================================================
 # MAIN
 # =============================================================================
+[[ -f "$BASE/lib/ui.sh" ]] && source "$BASE/lib/ui.sh" 2>/dev/null || true
+
 echo ""
-echo -e "${GOLD}  ╔══════════════════════════════════════════════════╗${RESET}"
-echo -e "${WHITE}   🔄 MAXINET NETWORK — ACTUALIZADOR${RESET}"
-echo -e "${GOLD}  ╚══════════════════════════════════════════════════╝${RESET}"
+if declare -F mv_header >/dev/null 2>&1; then
+    mv_header "🔄 MAXINET NETWORK — ACTUALIZADOR" "Verificación e integridad del sistema" "v$(ver_local)"
+else
+    echo -e "${GOLD}  ╔══════════════════════════════════════════════════╗${RESET}"
+    echo -e "${GOLD}  ║${WHITE}   🔄 MAXINET NETWORK — ACTUALIZADOR              ${GOLD}║${RESET}"
+    echo -e "${GOLD}  ╚══════════════════════════════════════════════════╝${RESET}"
+fi
 echo ""
 
 LV=$(ver_local)

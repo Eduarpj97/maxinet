@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.4")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.5")}"
             shift
             ;;
         --limpiar-solo)
@@ -329,16 +329,15 @@ if [[ -d "/etc/maxinet" ]]; then
         if [[ -n "$_up_src" ]]; then
             _up_bak="/tmp/mv-up-bak-$$"
             mkdir -p "$_up_bak"
-            # Preservar estado local (.conf/.db) antes de pisar
-            find /etc/maxinet -maxdepth 3 -type f \( -name '*.conf' -o -name '*.db' \) -exec cp -a --parents {} "$_up_bak/" \; 2>/dev/null || true
+            # Preservar estado local (.conf/.db/dominio) con rutas relativas exactas
+            (cd /etc/maxinet && tar -cf "$_up_bak/state.tar" \
+                $(find . -maxdepth 3 -type f \( -name '*.conf' -o -name '*.db' -o -name 'dominio' -o -name '.last_commit_hash' \) 2>/dev/null) 2>/dev/null) || true
             cp -a "$_up_src"/. /etc/maxinet/ 2>/dev/null || true
             chmod -R +x /etc/maxinet 2>/dev/null || true
-            # Restaurar estado local preservado
-            while IFS= read -r _f; do
-                [[ -z "$_f" ]] && continue
-                _rel="${_f#$_up_bak/}"
-                cp -a "$_f" "/etc/maxinet/$_rel" 2>/dev/null || true
-            done < <(find "$_up_bak" -type f 2>/dev/null)
+            # Restaurar estado local preservado sobre /etc/maxinet/
+            if [[ -f "$_up_bak/state.tar" ]]; then
+                tar -xf "$_up_bak/state.tar" -C /etc/maxinet/ 2>/dev/null || true
+            fi
             rm -rf "$_up_bak"
             # v7.4.1: registrar la versión del instalador público si la exportó
             if [[ -n "${MAXINET_VERSION:-}" ]]; then
