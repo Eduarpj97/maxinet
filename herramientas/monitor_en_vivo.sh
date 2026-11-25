@@ -184,22 +184,35 @@ _ssh_pintar_tabla() {
 }
 
 _udp_hace() {
-    local ult="${1:-}" vacio="${2:-en vivo}" tseg edad dd ahora
-    [[ -z "$ult" || "$ult" == "—" || "$ult" == "nunca" ]] && { printf '%s' "$vacio"; return 0; }
-    [[ "$ult" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]] || { printf '%s' "$vacio"; return 0; }
-    ahora=$(date +%s 2>/dev/null)
-    tseg=$(date -d "$ult" +%s 2>/dev/null)
-    if [[ -n "$tseg" && -n "$ahora" ]]; then
-        edad=$(( ahora - tseg ))
-        (( edad < 0 )) && edad=0
-        if (( edad < 60 )); then printf 'hace %ds' "$edad"; return 0; fi
-        if (( edad < 3600 )); then printf 'hace %dm' $(( edad / 60 )); return 0; fi
-        if (( edad < 86400 )); then printf 'hace %dh' $(( edad / 3600 )); return 0; fi
-        dd=$(( edad / 86400 )); (( dd > 99 )) && dd=99
-        printf 'hace %dd' "$dd"
-        return 0
+    local ult="${1:-}" vacio="${2:-nunca}" out ahora tseg
+    if declare -F _zivpn_hace >/dev/null 2>&1; then
+        out=$(_zivpn_hace "$ult" "$vacio")
+    else
+        [[ -z "$ult" || "$ult" == "—" || "$ult" == "nunca" ]] && { printf '%s' "$vacio"; return 0; }
+        [[ "$ult" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]] || { printf '%s' "$vacio"; return 0; }
+        ahora=$(date +%s 2>/dev/null)
+        tseg=$(date -d "$ult" +%s 2>/dev/null)
+        if [[ -n "$tseg" && -n "$ahora" ]]; then
+            local edad=$(( ahora - tseg )) dd
+            (( edad < 0 )) && edad=0
+            if (( edad < 60 )); then out="hace ${edad}s"
+            elif (( edad < 3600 )); then out="hace $(( edad / 60 ))m"
+            elif (( edad < 86400 )); then out="hace $(( edad / 3600 ))h"
+            else dd=$(( edad / 86400 )); (( dd > 99 )) && dd=99; out="hace ${dd}d"
+            fi
+        else
+            out="$vacio"
+        fi
     fi
-    printf '%s' "$vacio"
+    if [[ "$ult" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2} ]]; then
+        ahora=$(date +%s 2>/dev/null)
+        tseg=$(date -d "$ult" +%s 2>/dev/null)
+        if [[ -n "$ahora" && -n "$tseg" ]] && (( tseg > ahora + 120 )); then
+            printf '%s' "—"
+            return 0
+        fi
+    fi
+    printf '%s' "$out"
 }
 
 _udp_evento_reciente() {
@@ -214,19 +227,21 @@ _udp_custom_pintar_tabla() {
     local -a filas=("$@")
     [[ ${#filas[@]} -eq 0 ]] && return 0
 
-    local pad="   " max="${UDP_TABLA_MAX:-25}" shown=0
+    local pad="   " max="${ZIVPN_TABLA_MAX:-${UDP_TABLA_MAX:-25}}" shown=0
     local usuario n ips nip ult nv uev tcol marca hace est cell nip_txt
     local n_on=0 n_off=0 n_ip_on=0 _ip
+    local w_user=16 w_n=8 w_ult=19 w_est=18
     declare -A _ips_on=()
 
     local top mid bot
-    top="┌──────────────────┬──────────┬─────────────────────┬────────────┐"
-    mid="├──────────────────┼──────────┼─────────────────────┼────────────┤"
-    bot="└──────────────────┴──────────┴─────────────────────┴────────────┘"
+    top="┌$(_abb_rep '─' $((w_user+2)))┬$(_abb_rep '─' $((w_n+2)))┬$(_abb_rep '─' $((w_ult+2)))┬$(_abb_rep '─' $((w_est+2)))┐"
+    mid="├$(_abb_rep '─' $((w_user+2)))┼$(_abb_rep '─' $((w_n+2)))┼$(_abb_rep '─' $((w_ult+2)))┼$(_abb_rep '─' $((w_est+2)))┤"
+    bot="└$(_abb_rep '─' $((w_user+2)))┴$(_abb_rep '─' $((w_n+2)))┴$(_abb_rep '─' $((w_ult+2)))┴$(_abb_rep '─' $((w_est+2)))┘"
 
     echo -e "${pad}${GY}${top}${RS}"
-    printf "${pad}${GY}│${RS} %s ${GY}│${RS} %s ${GY}│${RS} %s ${GY}│${RS} %s ${GY}│${RS}\n" \
-        "USUARIO SSH     " "DISP.   " "ÚLTIMA CONEXIÓN    " "ESTADO    "
+    printf "${pad}${GY}│${RS} ${WH}%s${RS} ${GY}│${RS} ${WH}%s${RS} ${GY}│${RS} ${WH}%s${RS} ${GY}│${RS} ${WH}%s${RS} ${GY}│${RS}\n" \
+        "$(_abb_celda 'USUARIO SSH' "$w_user")" "$(_abb_celda 'DISP.' "$w_n")" \
+        "$(_abb_celda 'ÚLTIMA CONEXIÓN' "$w_ult")" "$(_abb_celda 'ESTADO' "$w_est")"
     echo -e "${pad}${GY}${mid}${RS}"
 
     for line in "${filas[@]}"; do
@@ -242,25 +257,28 @@ _udp_custom_pintar_tabla() {
             if (( ${nv:-0} >= ${nip:-0} )); then
                 for _ip in $ips; do [[ -n "$_ip" ]] && _ips_on["$_ip"]=1; done
             fi
-            printf -v est '%s %-8s' "$marca" "$hace"
+            est="$(_abb_celda "${marca} ${hace}" "$w_est")"
         else
             marca="○"; tcol="$GY"
             n_off=$(( n_off + 1 ))
             hace=$(_udp_hace "${uev:-$ult}" "nunca")
             nip_txt=0
-            printf -v est '%s %-8s' "$marca" "$hace"
+            est="$(_abb_celda "${marca} apagada ${hace}" "$w_est")"
         fi
-        cell=$(_zivpn_celda16 "$usuario")
-        printf "${pad}${GY}│${RS} ${YW}%s${RS} ${GY}│${RS} ${WH}%8s${RS} ${GY}│${RS} ${CY}%-19s${RS} ${GY}│${RS} ${tcol}%s${RS} ${GY}│${RS}\n" \
-            "$cell" "$nip_txt" "${ult:-—}" "$est"
+        cell=$(_abb_celda "$usuario" "$w_user")
+        printf "${pad}${GY}│${RS} ${YW}%s${RS} ${GY}│${RS} ${WH}%8s${RS} ${GY}│${RS} ${CY}%s${RS} ${GY}│${RS} ${tcol}%s${RS} ${GY}│${RS}\n" \
+            "$cell" "$nip_txt" "$(_abb_celda "${ult:-—}" "$w_ult")" "$est"
     done
 
     echo -e "${pad}${GY}${bot}${RS}"
     n_ip_on="${UDP_TABLA_IPS_ON:-}"
     [[ "$n_ip_on" =~ ^[0-9]+$ ]] || n_ip_on=${#_ips_on[@]}
     local ventana="${UDP_VENTANA_UDP:-120}"
-    local leyenda="● = actividad reciente · ○ = apagada"
+    local leyenda="●/◐ = actividad en los últimos ${ventana} s · ○ = apagada"
     echo -e "${pad}${GY}${n_ip_on} IP(s) conectada(s) · ${n_on} usuario(s) en línea · ${n_off} apagada(s) · ${leyenda}${RS}"
+    local n_total=$(( n_on + n_off ))
+    [[ "$n_total" -gt "$max" ]] && echo -e "${pad}${DK}· límite ${max} fila(s) por pantalla: ${n_total} usuario(s) en total${RS}"
+    return 0
 }
 
 _udp_merge_evidencia() {
@@ -839,6 +857,8 @@ mostrar_conectados() {
         local UDP_MODO="journal"
         local UDP_CUSTOM_PORT=""
         [[ -f /root/udp/config.json ]] && UDP_CUSTOM_PORT=$(grep -oP '"listen":\s*":?\K[0-9]+' /root/udp/config.json 2>/dev/null | head -1)
+        [[ -z "$UDP_CUSTOM_PORT" && -f /etc/UDPCustom/config.json ]] && UDP_CUSTOM_PORT=$(grep -oP '"listen":\s*":?\K[0-9]+' /etc/UDPCustom/config.json 2>/dev/null | head -1)
+        [[ -z "$UDP_CUSTOM_PORT" && -f /usr/bin/config.json ]] && UDP_CUSTOM_PORT=$(grep -oP '"listen":\s*":?\K[0-9]+' /usr/bin/config.json 2>/dev/null | head -1)
         [[ -z "$UDP_CUSTOM_PORT" ]] && UDP_CUSTOM_PORT=36712
 
         declare -A UDP_REGISTRADOS=()

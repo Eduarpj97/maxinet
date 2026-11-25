@@ -19,7 +19,7 @@ for _arg in "$@"; do
         --update)
             export AUTO_INSTALL=1
             export MAXINET_SRC="${MAXINET_SRC:-$(pwd)}"
-            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.6")}"
+            export MAXINET_VERSION="${MAXINET_VERSION:-$(cat /etc/maxinet/version.txt 2>/dev/null || echo "3.1.7")}"
             shift
             ;;
         --limpiar-solo)
@@ -349,6 +349,21 @@ if [[ -d "/etc/maxinet" ]]; then
             chmod +x /etc/maxinet/scripts/expira-exacta.sh 2>/dev/null || true
             ( crontab -l 2>/dev/null | grep -v 'expira-exacta'; echo '* * * * * bash /etc/maxinet/scripts/expira-exacta.sh >/dev/null 2>&1' ) | crontab - 2>/dev/null || true
             echo " ✅ Cron expira-exacta (minuto) configurado."
+            if [[ -f /etc/maxinet/herramientas/trafico.sh ]]; then
+                bash /etc/maxinet/herramientas/trafico.sh --install-cron >/dev/null 2>&1 || true
+            fi
+            if [[ -f /etc/zivpn/config.json ]] && command -v jq >/dev/null 2>&1; then
+                _zv_mode=$(jq -r '.auth.mode // ""' /etc/zivpn/config.json 2>/dev/null)
+                if [[ "$_zv_mode" != "command" && -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
+                    ( source /etc/maxinet/protocolos/zipvpn.sh >/dev/null 2>&1 && crear_auth_zivpn ) 2>/dev/null || true
+                    if [[ -x /etc/zivpn/auth.sh ]]; then
+                        jq '.auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null && \
+                            mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json && \
+                            systemctl restart zivpn.service >/dev/null 2>&1 || rm -f /tmp/zv_cfg.tmp
+                        echo " ✅ ZiVPN migrado a auth mode=command (conexiones reales)."
+                    fi
+                fi
+            fi
             # v8.2.1 FIX: tras re-desplegar el árbol, recrear SIEMPRE los launchers
             # seguros (menu/protocolos/herramientas/usuarios) y el banner 3D de marca.
             # Motivo: instalaciones viejas (7.4.5) no dejan /usr/local/bin/usuarios ni

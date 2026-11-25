@@ -53,72 +53,73 @@ anim_run "apt update" apt update -y
 anim_run "Instalar paquetes base" apt install -y curl wget iptables libpam0g
 
 
-anim_step "Activando IP Forward"
+anim_step "Activando IP Forward y DNAT"
 
-sysctl -w net.ipv4.ip_forward=1
+sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1
+sysctl -w net.core.rmem_max=67108864 >/dev/null 2>&1
+sysctl -w net.core.wmem_max=67108864 >/dev/null 2>&1
+grep -q "^net.ipv4.ip_forward=1" /etc/sysctl.conf 2>/dev/null || echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf
 
-grep -q "net.ipv4.ip_forward=1" /etc/sysctl.conf || \
-echo "$(trx 'net.ipv4.ip_forward=1')" >> /etc/sysctl.conf
+DEV=$(ip -4 route show default 2>/dev/null | awk '{print $5}' | head -1)
+[[ -z "$DEV" ]] && DEV=$(ip link show up 2>/dev/null | awk -F': ' '/state UP/ && $2!="lo"{print $2;exit}')
+DEV="${DEV:-eth0}"
 
-# Abrir RANGO 1-36712 UDP + NAT (salida a internet)
-if [[ -f "$BASE/herramientas/openports.sh" ]]; then
-    source "$BASE/herramientas/openports.sh"
-    open_ports "UDP:1-36712"
-else
-    iptables -C INPUT -p udp --dport 1:36712 -j ACCEPT 2>/dev/null \
-        || iptables -A INPUT -p udp --dport 1:36712 -j ACCEPT
-    DEV=$(ip -4 route show default | awk '{print $5}' | head -1)
-    [[ -n "$DEV" ]] && {
-        iptables -t nat -C POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null \
-            || iptables -t nat -A POSTROUTING -o "$DEV" -j MASQUERADE
-    }
-fi
+# Limpiar reglas PREROUTING previas hacia 2100/36712/5667
+iptables -t nat -S PREROUTING 2>/dev/null | grep -E "DNAT.*:(2100|36712|5667)" | sed 's/^-A/-D/' | while read -r rule; do
+    iptables -t nat $rule 2>/dev/null || true
+done
 
+# 1. Excepción ESTABLISHED,RELATED (evita secuestrar respuestas DNS/QUIC)
+iptables -t nat -C PREROUTING -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null || \
+    iptables -t nat -I PREROUTING 1 -p udp -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT 2>/dev/null
+
+# 2. ZiVPN Port-Hopping 6000:19999 -> 5667
+iptables -t nat -A PREROUTING -p udp -m udp --dport 6000:19999 -j DNAT --to-destination :5667 2>/dev/null
+
+# 3. DNAT UDP Custom -> 36712 (excluyendo puertos dedicados)
+for _rng in 1:89 91:108 110:142 144:5666 5668:7099 7301:9899 9901:36711 36713:65535; do
+    iptables -t nat -A PREROUTING -i "$DEV" -p udp -m udp --dport "$_rng" -j DNAT --to-destination :36712 2>/dev/null
+done
+
+iptables -C INPUT -p udp --dport 36712 -j ACCEPT 2>/dev/null || iptables -A INPUT -p udp --dport 36712 -j ACCEPT 2>/dev/null
+iptables -t nat -C POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null || iptables -t nat -A POSTROUTING -o "$DEV" -j MASQUERADE 2>/dev/null
+netfilter-persistent save >/dev/null 2>&1 || iptables-save > /etc/iptables/rules.v4 2>/dev/null || true
 
 ARCH=$(uname -m)
 
-
 case "$ARCH" in
-
 x86_64)
-URL="https://github.com/Depwisescript/UDP/raw/main/udp-custom-linux-amd64"
+URL="https://raw.githubusercontent.com/http-custom/udp-custom/main/bin/udp-custom-linux-amd64"
 ;;
-
-aarch64)
-URL="https://github.com/Depwisescript/UDP/raw/main/udp-custom-linux-arm"
+aarch64|arm64)
+URL="https://raw.githubusercontent.com/prjkt-nv404/UDP-Custom-Installer-arm64/main/udpc-arm64"
 ;;
-
 *)
 echo "❌ Arquitectura no soportada: $ARCH"
 return
 ;;
-
 esac
 
-
+mkdir -p /root/udp /etc/UDPCustom 2>/dev/null
 anim_step "Descargando UDP (${ARCH})"
 
-if ! anim_run "Descargar binario" curl -L -s -f "$URL" -o "$BIN"; then
+if ! anim_run "Descargar binario" curl -L -s -f "$URL" -o "/root/udp/udp-custom"; then
     :
 fi
 
-
-if [[ ! -f "$BIN" ]]; then
-
-echo "$(trx '❌ Error descargando UDP')"
-
-return
-
+if [[ ! -f "/root/udp/udp-custom" || $(wc -c < "/root/udp/udp-custom" 2>/dev/null || echo 0) -lt 1000000 ]]; then
+    echo "$(trx '❌ Error descargando UDP')"
+    return
 fi
 
-
-chmod +x "$BIN"
-
-
+chmod +x /root/udp/udp-custom
+cp -f /root/udp/udp-custom /usr/local/bin/udp-custom 2>/dev/null
+cp -f /root/udp/udp-custom "$BIN" 2>/dev/null
+chmod +x /usr/local/bin/udp-custom "$BIN" 2>/dev/null
 
 anim_step "Creando configuración"
 
-cat > "$CONFIG_UDP" <<EOF
+cat > /root/udp/config.json <<EOF
 {
     "listen": ":36712",
     "stream_buffer": 33554432,
@@ -128,24 +129,28 @@ cat > "$CONFIG_UDP" <<EOF
     }
 }
 EOF
-
-
+cp -f /root/udp/config.json /etc/UDPCustom/config.json 2>/dev/null
+cp -f /root/udp/config.json "$CONFIG_UDP" 2>/dev/null
 
 anim_step "Creando servicio"
 
-
 cat > /etc/systemd/system/$SERVICE.service <<EOF
 [Unit]
-Description=UDP Custom Server Maxinet
-After=network.target
+Description=Maxinet UDP Custom Service (HTTP Custom) [ Puerto 36712 ]
+After=network.target network-online.target
+Wants=network-online.target
 
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/usr/bin
-ExecStart=/usr/bin/udp server -exclude 2200,7300,7200,7100,323,10008,10004 /usr/bin/config.json
+WorkingDirectory=/root/udp
+ExecStart=/root/udp/udp-custom server -exclude 22,53,80,443,90,109,143,5667,7100,7200,7300,9900 --config /root/udp/config.json
 Restart=always
-RestartSec=3
+RestartSec=1s
+Nice=-20
+LimitNOFILE=1048576
+LimitNPROC=512000
+TasksMax=infinity
 
 [Install]
 WantedBy=multi-user.target
