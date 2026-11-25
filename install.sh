@@ -358,14 +358,53 @@ if [[ -d "/etc/maxinet" ]]; then
                 _zv_rwc=$(jq -r '.recv_window_client // 0' /etc/zivpn/config.json 2>/dev/null)
                 _zv_ll=$(jq -r '.log_level // ""' /etc/zivpn/config.json 2>/dev/null)
                 if [[ "$_zv_mode" != "command" || "${_zv_rwc:-0}" -lt 33554432 || "$_zv_ll" != "info" ]]; then
+                    # 1) Crear auth.sh — intentar con la función del módulo, fallback inline
+                    local _auth_ok=0
                     if [[ -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
-                        ( DIR_ZIVPN="/etc/zivpn"; eval "$(sed -n '/^crear_auth_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; crear_auth_zivpn ) >/dev/null 2>&1 || true
+                        ( DIR_ZIVPN="/etc/zivpn"; eval "$(sed -n '/^crear_auth_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; crear_auth_zivpn ) >/dev/null 2>&1 && _auth_ok=1
                     fi
+                    if [[ "$_auth_ok" -eq 0 || ! -x /etc/zivpn/auth.sh ]]; then
+                        # Fallback: generar auth.sh directamente
+                        cat > /etc/zivpn/auth.sh << 'AUTHEOF'
+#!/bin/bash
+ADDR="${1:-}"; AUTH="${2:-}"; TX="${3:-0}"
+CONEX_DB="/etc/zivpn/conexiones.db"; CFG="/etc/zivpn/config.json"
+CAD="/etc/zivpn/caducidad.db"; AUTH_TEST="${MAXINET_AUTH_TEST:-0}"
+OK=1; [ -n "$AUTH" ] || OK=0
+if [ "$OK" = 1 ] && command -v jq >/dev/null 2>&1 && [ -f "$CFG" ]; then
+    jq -e --arg a "$AUTH" '.auth.config[]? | select(. == $a)' "$CFG" >/dev/null 2>&1 || OK=0
+fi
+if [ "$OK" = 1 ] && [ -f "$CAD" ]; then
+    EXP=$(awk -F':' -v k="$AUTH" '$1 == k { print $2; exit }' "$CAD" 2>/dev/null)
+    if [ -n "$EXP" ] && [ "$EXP" != "Ilimitado" ]; then
+        HOY=$(date +%Y-%m-%d 2>/dev/null)
+        [ -n "$HOY" ] && [ "$HOY" \> "$EXP" ] && OK=0
+    fi
+fi
+FECHA=$(date -Iseconds 2>/dev/null || date '+%Y-%m-%dT%H:%M:%S%z')
+[ "$OK" = 1 ] && RES="ok" || RES="rechazado"
+if [ "$AUTH_TEST" != "1" ]; then
+    printf '%s|%s|%s|%s|%s\n' "$FECHA" "$ADDR" "$AUTH" "$TX" "$RES" >> "$CONEX_DB" 2>/dev/null
+    chmod 600 "$CONEX_DB" 2>/dev/null
+    if [ "$(wc -l < "$CONEX_DB" 2>/dev/null || echo 0)" -gt 20000 ]; then
+        tail -n 10000 "$CONEX_DB" > "$CONEX_DB.pod" 2>/dev/null && mv -f "$CONEX_DB.pod" "$CONEX_DB" 2>/dev/null
+    fi
+fi
+[ "$OK" = 1 ] && { printf '%s\n' "$AUTH"; exit 0; }
+exit 1
+AUTHEOF
+                        chmod 700 /etc/zivpn/auth.sh 2>/dev/null
+                    fi
+                    # 2) Aplicar config — separar jq/mv del restart para evitar que un restart fallo borre la config
                     if [[ -x /etc/zivpn/auth.sh ]]; then
-                        jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 33554432 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 1000 | .down_mbps = 1000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
-                            /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null && \
-                            mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json && \
-                            systemctl restart zivpn.service >/dev/null 2>&1 || rm -f /tmp/zv_cfg.tmp
+                        if jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 33554432 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 1000 | .down_mbps = 1000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
+                            /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null; then
+                            mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json
+                            systemctl restart zivpn.service >/dev/null 2>&1 || true
+                        else
+                            rm -f /tmp/zv_cfg.tmp
+                        fi
+                        # 3) Aplicar firewall
                         ( eval "$(sed -n '/^get_dev_interfaz()/,/^}/p; /^configurar_firewall_zivpn()/,/^}/p' /etc/maxinet/protocolos/zipvpn.sh)"; configurar_firewall_zivpn "$(jq -r '.listen // ":5667"' /etc/zivpn/config.json 2>/dev/null | tr -d ':')" ) >/dev/null 2>&1 || true
                         echo " ✅ ZiVPN optimizado y migrado a auth mode=command (conexiones reales)."
                     fi
