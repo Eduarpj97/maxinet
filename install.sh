@@ -512,6 +512,20 @@ MOVEOF
                 chmod +x /etc/profile.d/Maxinet-banner.sh 2>/dev/null
                 echo " ✅ Banner SSH de bienvenida actualizado en /etc/profile.d/Maxinet-banner.sh."
             fi
+            # Activar Auto-Start por defecto (panel directo al entrar por SSH; banner al salir con 0) salvo desactivación manual
+            if ! grep -q '^AUTO_START_MANUAL=1' /etc/maxinet/config.conf 2>/dev/null; then
+                sed -i '/^AUTO_START=/d' /etc/maxinet/config.conf 2>/dev/null || true
+                echo "AUTO_START=ON" >> /etc/maxinet/config.conf
+                cat > /etc/profile.d/Maxinet.sh << 'EOF'
+#!/bin/bash
+if [[ $- == *i* && -z "${MAXINET_IN_MENU:-}" ]]; then
+    export MAXINET_IN_MENU=1
+    menu
+fi
+EOF
+                chmod +x /etc/profile.d/Maxinet.sh 2>/dev/null || true
+                echo " ✅ Auto-inicio del panel activado al entrar por SSH."
+            fi
         else
             echo " (sin payload local disponible — delegando en updater.sh remoto)"
             bash <(curl -fsSL "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/updater.sh?t=$(date +%s)") --force || true
@@ -2351,7 +2365,7 @@ PROXY_STATUS="$PROXY_STATUS"
 VPS_TRAFFIC_BASE_RX=0
 VPS_TRAFFIC_BASE_TX=0
 
-AUTO_START=OFF
+AUTO_START=ON
 
 #==============================
 # AUTO-UPDATE (checker por cron)

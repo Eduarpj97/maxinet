@@ -18,6 +18,34 @@ mkdir -p "$BASE" "$DIR_TRAFICO" "$DIR_ZIVPN" 2>/dev/null
 touch "$DB_USERS" "$ZIVPN_CONEX" 2>/dev/null
 [[ -f "$DB_USERS" ]] || DB_USERS="/dev/null"
 
+# Fast-path para daemon (--check cada 15s) y cron (--snapshot-iface): evita cargar ui.sh y conexiones.sh
+if [[ "${1:-}" == "--check" ]]; then
+    [[ ! -f "$DB_USERS" || "$DB_USERS" == "/dev/null" ]] && exit 0
+    HOY_SEC=$(date +%s)
+    ps_out=$(ps -ef 2>/dev/null)
+    while IFS=: read -r u pass exp lim _; do
+        [[ -z "$u" || "$u" =~ ^# ]] && continue
+        case "$u" in
+            ubuntu|opc|snapd*|root|daemon|bin|sys|sync|games|man|lp|mail|news|uucp|proxy|www-data|backup|list|irc|gnats|nobody|systemd-*|_apt|sshd|messagebus|polkitd|kvm|render|tss|redis) continue ;;
+        esac
+        if [[ -n "$exp" && "$exp" != "Ilimitado" && "$exp" != "0" ]]; then
+            if [[ "$exp" =~ ^[0-9]+$ ]]; then EXP_SEC="$exp"; else EXP_SEC=$(date -d "$exp" +%s 2>/dev/null || echo 0); fi
+            if [[ "$EXP_SEC" -gt 0 && "$EXP_SEC" -le "$HOY_SEC" ]]; then
+                pkill -u "$u" 2>/dev/null; usermod -L "$u" 2>/dev/null; continue
+            fi
+        fi
+        if [[ -n "$lim" && "$lim" =~ ^[0-9]+$ && "$lim" -gt 0 ]]; then
+            PIDS=($(printf '%s\n' "$ps_out" | grep -E "sshd:\s*${u}(\s+\[priv\]|@|\s*$)|dropbear.*${u}" | grep -v grep | grep -v "dropbear -p" | awk '{print $2}'))
+            NUM_CONNS=${#PIDS[@]}
+            if [[ "$NUM_CONNS" -gt "$lim" ]]; then
+                EXCESO=$(( NUM_CONNS - lim ))
+                for (( i=0; i<EXCESO; i++ )); do kill -9 "${PIDS[$i]}" 2>/dev/null; done
+            fi
+        fi
+    done < "$DB_USERS"
+    exit 0
+fi
+
 [[ -f "$CONFIG" ]] && source "$CONFIG" 2>/dev/null || true
 [[ -f "$BASE/lib/ui.sh" ]] && source "$BASE/lib/ui.sh" 2>/dev/null || true
 [[ -f "$BASE/herramientas/conexiones.sh" ]] && source "$BASE/herramientas/conexiones.sh" 2>/dev/null || true

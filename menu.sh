@@ -222,24 +222,37 @@ read -r TOTAL_RAM_MB USED_RAM_MB FREE_RAM_MB <<<"$(free -m | awk '/Mem:/{print $
 TOTAL_RAM=${TOTAL_RAM_MB:-0}; USED_RAM=${USED_RAM_MB:-0}
 RAM_USE=$(( TOTAL_RAM > 0 ? USED_RAM*100/TOTAL_RAM : 0 ))
 
-# CPU instantáneo sin sleep
+# CPU 100% real desde /proc/stat (sin inflar con loadavg)
 CPU_USE=0
 if [[ -r /proc/stat ]]; then
     _now_stat=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat 2>/dev/null)
     _stat_cache="/tmp/_maxinet_cpu_stat"
+    _got_cpu=0
     if [[ -f "$_stat_cache" ]]; then
-        read -r _prev_tot _prev_idl < "$_stat_cache" 2>/dev/null
-        TOT1=${_prev_tot:-0}; IDL1=${_prev_idl:-0}
+        _now_ep=$(date +%s 2>/dev/null || echo 0)
+        _cache_ep=$(stat -c %Y "$_stat_cache" 2>/dev/null || echo 0)
+        if (( _now_ep - _cache_ep <= 60 )); then
+            read -r _prev_tot _prev_idl < "$_stat_cache" 2>/dev/null
+            TOT1=${_prev_tot:-0}; IDL1=${_prev_idl:-0}
+            TOT2=${_now_stat% *}; IDL2=${_now_stat#* }
+            if [[ -n "$TOT1" && "$TOT1" -gt 0 && "$TOT2" -gt "$TOT1" ]]; then
+                CPU_USE=$(( ( (TOT2-TOT1) - (IDL2-IDL1) ) * 100 / (TOT2-TOT1) ))
+                _got_cpu=1
+            fi
+        fi
+    fi
+    if [[ "$_got_cpu" -eq 0 ]]; then
+        TOT1=${_now_stat% *}; IDL1=${_now_stat#* }
+        sleep 0.15
+        _now_stat=$(awk '/^cpu /{print $2+$3+$4+$5+$6+$7+$8+$9, $5+$6}' /proc/stat 2>/dev/null)
         TOT2=${_now_stat% *}; IDL2=${_now_stat#* }
-        if [[ "$TOT2" != "$TOT1" && -n "$TOT1" && "$TOT1" -gt 0 ]]; then
+        if [[ -n "$TOT1" && "$TOT2" -gt "$TOT1" ]]; then
             CPU_USE=$(( ( (TOT2-TOT1) - (IDL2-IDL1) ) * 100 / (TOT2-TOT1) ))
         fi
     fi
+    (( CPU_USE < 0 )) && CPU_USE=0
+    (( CPU_USE > 100 )) && CPU_USE=100
     echo "$_now_stat" > "$_stat_cache" 2>/dev/null
-    if [[ "$CPU_USE" -le 0 ]]; then
-        _load1=$(awk '{print $1}' /proc/loadavg 2>/dev/null)
-        CPU_USE=$(awk -v l="$_load1" -v c="${CPU_CORES:-1}" 'BEGIN { u = int((l/c)*100); if (u > 100) u=100; if (u < 0) u=0; print u }' 2>/dev/null || echo 0)
-    fi
 fi
 
 DISK=$(df -h / | awk 'NR==2 {print $5}')
@@ -836,17 +849,21 @@ case "$OPCION" in
     FILE="/etc/profile.d/Maxinet.sh"
     clear
     if [[ "${AUTO_START:-OFF}" == "OFF" ]]; then
-        sed -i 's/AUTO_START=OFF/AUTO_START=ON/' "$CONFIG"
+        sed -i '/^AUTO_START=/d;/^AUTO_START_MANUAL=/d' "$CONFIG"
+        echo "AUTO_START=ON" >> "$CONFIG"
         cat > "$FILE" << 'EOF'
 #!/bin/bash
-if [[ $- == *i* ]]; then
+if [[ $- == *i* && -z "${MAXINET_IN_MENU:-}" ]]; then
+    export MAXINET_IN_MENU=1
     menu
 fi
 EOF
         chmod +x "$FILE"
         echo -e "${GREEN}✅ ${AUTO_ON:-Auto inicio activado}${RESET}"
     else
-        sed -i 's/AUTO_START=ON/AUTO_START=OFF/' "$CONFIG"
+        sed -i '/^AUTO_START=/d;/^AUTO_START_MANUAL=/d' "$CONFIG"
+        echo "AUTO_START=OFF" >> "$CONFIG"
+        echo "AUTO_START_MANUAL=1" >> "$CONFIG"
         rm -f "$FILE"
         echo -e "${GOLD}⚠️ ${AUTO_OFF:-Auto inicio desactivado}${RESET}"
     fi
@@ -1077,27 +1094,19 @@ EOF
 
 0)
     clear
-    echo ""
-    mv_panel_top "${EXIT_MSG:-Gracias por usar Maxinet Network}"
-    mv_panel_mid "🛡 SISTEMA PROTEGIDO POR MAXINET 🛡"
-    if mv_simple_mode 2>/dev/null; then
-        mv_prow_center "📢 t.me/Maxinet"
-        mv_prow_center "👥 t.me/MaxinetNet"
-        mv_prow_center "💬 t.me/Maxinet"
-        mv_prow_center "🌐 maxinet-network.web.app"
-        mv_prow_center "📱 +57 311 700 8185"
-        mv_prow_center "🤝 Socios: t.me/FreeNetZonevip"
+    if [[ -f /etc/profile.d/Maxinet-banner.sh ]]; then
+        MAXINET_SHOW_BANNER_ON_EXIT=1 bash /etc/profile.d/Maxinet-banner.sh 2>/dev/null || true
     else
+        echo ""
+        mv_panel_top "${EXIT_MSG:-Gracias por usar Maxinet Network}"
+        mv_panel_mid "🛡 SISTEMA PROTEGIDO POR MAXINET 🛡"
         mv_prow_center "📢 Canal: t.me/Maxinet"
         mv_prow_center "👥 Grupo: t.me/MaxinetNet"
-        mv_prow_center "💬 Soporte: t.me/Maxinet"
         mv_prow_center "🌐 Web: maxinet-network.web.app"
-        mv_prow_center "📱 WhatsApp: +57 311 700 8185"
-        mv_prow_center "🤝 Socios: t.me/FreeNetZonevip · t.me/FreeNetZonevips"
+        mv_line_thin
+        mv_center "${MV_GLD}${MV_BLD}M A X I N E T${MV_R}"
+        echo ""
     fi
-    mv_line_thin
-    mv_center "${MV_GLD}${MV_BLD}M A X I N E T${MV_R}"
-    echo ""
     exit 0
 ;;
 

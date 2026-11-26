@@ -3,7 +3,12 @@
 # Maxinet Network - Premium Welcome Banner v3.1.6
 # Diseño profesional - Sistema de diseño Nebula
 #==================================================
-[[ $- != *i* ]] && return
+[[ $- != *i* && -z "${MAXINET_SHOW_BANNER_ON_EXIT:-}" ]] && return
+if [[ -z "${MAXINET_SHOW_BANNER_ON_EXIT:-}" ]]; then
+    if [[ -f /etc/profile.d/Maxinet.sh ]] || grep -q '^AUTO_START=ON' /etc/maxinet/config.conf 2>/dev/null; then
+        return 0
+    fi
+fi
 clear
 
 # ── Datos del sistema (mínimos subprocesos) ──────────────────────────
