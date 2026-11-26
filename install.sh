@@ -357,11 +357,12 @@ if [[ -d "/etc/maxinet" ]]; then
                 _zv_mode=$(jq -r '.auth.mode // ""' /etc/zivpn/config.json 2>/dev/null)
                 _zv_rwc=$(jq -r '.recv_window_client // 0' /etc/zivpn/config.json 2>/dev/null)
                 _zv_rwconn=$(jq -r '.recv_window_conn // 0' /etc/zivpn/config.json 2>/dev/null)
+                _zv_up=$(jq -r '.up_mbps // 0' /etc/zivpn/config.json 2>/dev/null)
                 _zv_ll=$(jq -r '.log_level // ""' /etc/zivpn/config.json 2>/dev/null)
                 _zv_icb=$(jq -r '.ignoreClientBandwidth // false' /etc/zivpn/config.json 2>/dev/null)
                 _zv_pmtu=$(jq -r '.disablePathMTUDiscovery // false' /etc/zivpn/config.json 2>/dev/null)
                 _zv_ka=$(jq -r '.keepAlivePeriod // 0' /etc/zivpn/config.json 2>/dev/null)
-                if [[ "$_zv_mode" != "command" || "${_zv_rwc:-0}" -lt 33554432 || "${_zv_rwconn:-0}" -ne 8388608 || "$_zv_ll" != "info" || "$_zv_icb" != "true" || "$_zv_pmtu" != "true" || "${_zv_ka:-0}" -eq 0 ]]; then
+                if [[ "$_zv_mode" != "command" || "${_zv_rwc:-0}" -lt 33554432 || "${_zv_rwconn:-0}" -ne 16777216 || "${_zv_up:-0}" -ne 200 || "$_zv_ll" != "info" || "$_zv_icb" != "true" || "$_zv_pmtu" != "true" || "${_zv_ka:-0}" -eq 0 ]]; then
                     # 1) Crear auth.sh — intentar con la función del módulo, fallback inline
                     local _auth_ok=0
                     if [[ -f /etc/maxinet/protocolos/zipvpn.sh ]]; then
@@ -401,7 +402,7 @@ AUTHEOF
                     fi
                     # 2) Aplicar config optimizada para datos móviles (BBR + disablePathMTUDiscovery + keepalive)
                     if [[ -x /etc/zivpn/auth.sh ]]; then
-                        if jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 8388608 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 100 | .down_mbps = 100 | .ignoreClientBandwidth = true | .disablePathMTUDiscovery = true | .maxIdleTimeout = 60000000000 | .keepAlivePeriod = 10000000000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
+                        if jq 'del(.obfs) | .log_level = "info" | .recv_window_conn = 16777216 | .recv_window_client = 67108864 | .max_conn_client = 8192 | .up_mbps = 200 | .down_mbps = 200 | .ignoreClientBandwidth = true | .disablePathMTUDiscovery = true | .maxIdleTimeout = 60000000000 | .keepAlivePeriod = 10000000000 | .disable_udp = false | .auth.mode = "command" | .auth.command = "/etc/zivpn/auth.sh"' \
                             /etc/zivpn/config.json > /tmp/zv_cfg.tmp 2>/dev/null; then
                             mv -f /tmp/zv_cfg.tmp /etc/zivpn/config.json && chmod 600 /etc/zivpn/config.json
                             systemctl restart zivpn.service >/dev/null 2>&1 || true
@@ -449,8 +450,8 @@ net.core.wmem_default = 262144
 net.core.optmem_max = 2097152
 net.core.netdev_max_backlog = 16384
 net.core.somaxconn = 65535
-net.core.netdev_budget = 300
-net.core.netdev_budget_usecs = 2000
+net.core.netdev_budget = 600
+net.core.netdev_budget_usecs = 4000
 net.core.default_qdisc = fq_codel
 net.ipv4.tcp_congestion_control = bbr
 net.ipv4.tcp_rmem = 4096 87380 67108864
@@ -524,8 +525,24 @@ if [[ $- == *i* && -z "${MAXINET_IN_MENU:-}" ]]; then
 fi
 EOF
                 chmod +x /etc/profile.d/Maxinet.sh 2>/dev/null || true
+                touch /root/.hushlogin 2>/dev/null || true
                 echo " ✅ Auto-inicio del panel activado al entrar por SSH."
             fi
+            # Evitar Nice=-20 que ahoga sshd/kernel y limitar journald + acelerar SSH login
+            _svc_changed=0
+            for _sf in /etc/systemd/system/zivpn.service /etc/systemd/system/udp-custom.service; do
+                if [[ -f "$_sf" ]] && grep -q '^Nice=-20' "$_sf" 2>/dev/null; then
+                    sed -i 's/^Nice=-20/Nice=-5/' "$_sf" 2>/dev/null && _svc_changed=1
+                fi
+            done
+            [[ "$_svc_changed" -eq 1 ]] && { systemctl daemon-reload >/dev/null 2>&1 || true; systemctl restart zivpn.service udp-custom.service >/dev/null 2>&1 || true; }
+            mkdir -p /etc/systemd/journald.conf.d /etc/ssh/sshd_config.d 2>/dev/null || true
+            printf '[Journal]\nSystemMaxUse=50M\nRuntimeMaxUse=20M\n' > /etc/systemd/journald.conf.d/maxinet.conf
+            systemctl restart systemd-journald >/dev/null 2>&1 || true
+            journalctl --vacuum-size=50M >/dev/null 2>&1 || true
+            printf 'UseDNS no\nGSSAPIAuthentication no\n' > /etc/ssh/sshd_config.d/99-maxinet-fast.conf
+            systemctl reload ssh >/dev/null 2>&1 || systemctl reload sshd >/dev/null 2>&1 || true
+            rm -f /etc/maxinet/.crlf_clean_ver 2>/dev/null || true
         else
             echo " (sin payload local disponible — delegando en updater.sh remoto)"
             bash <(curl -fsSL "https://raw.githubusercontent.com/Eduarpj97/maxinet/main/updater.sh?t=$(date +%s)") --force || true
@@ -1805,8 +1822,8 @@ net.ipv4.tcp_slow_start_after_idle=0
 net.ipv4.tcp_low_latency=1
 net.core.somaxconn=65535
 net.core.netdev_max_backlog=16384
-net.core.netdev_budget=300
-net.core.netdev_budget_usecs=2000
+net.core.netdev_budget=600
+net.core.netdev_budget_usecs=4000
 net.ipv4.tcp_max_syn_backlog=8192
 net.ipv4.tcp_fin_timeout=10
 net.ipv4.tcp_keepalive_time=300

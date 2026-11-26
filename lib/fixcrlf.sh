@@ -13,8 +13,17 @@
 MV_BASE="${MV_BASE:-/etc/maxinet}"
 
 fix_crlf_all() {
-    local f tmp sz clean base="$MV_BASE"
+    local force="${1:-}"
+    local base="$MV_BASE"
     [[ -d "$base" ]] || return 0
+    local ver_file="$base/version.txt" stamp_file="$base/.crlf_clean_ver"
+    local cur_ver="" stamp_ver=""
+    [[ -f "$ver_file" ]] && cur_ver=$(tr -d ' \r\n' < "$ver_file" 2>/dev/null)
+    [[ -f "$stamp_file" ]] && stamp_ver=$(tr -d ' \r\n' < "$stamp_file" 2>/dev/null)
+    if [[ "$force" != "--force" && -n "$cur_ver" && "$cur_ver" == "$stamp_ver" ]]; then
+        return 0
+    fi
+    local f tmp sz clean
     while IFS= read -r -d '' f; do
         [[ -f "$f" && -w "$f" ]] || continue
         sz=$(wc -c < "$f" 2>/dev/null)
@@ -27,6 +36,7 @@ fix_crlf_all() {
         mv -f "$tmp" "$f" 2>/dev/null
         rm -f "$tmp" 2>/dev/null
     done < <(find "$base" -type f -name '*.sh' -print0 2>/dev/null)
+    [[ -n "$cur_ver" ]] && printf '%s\n' "$cur_ver" > "$stamp_file" 2>/dev/null || true
     return 0
 }
 

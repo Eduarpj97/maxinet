@@ -319,10 +319,7 @@ while read -r u; do
     [[ -n "$u" ]] && UNIFIED_USERS+=("$u")
 done < <(ps -C sshd -o args= 2>/dev/null | grep "\[priv\]" | awk -F'sshd: ' '{print $2}' | awk '{print $1}' | grep -vE '^(root|unknown|invalid|\(null\))$')
 
-# ── Detección ultrarrápida de flujos UDP en kernel (<2ms) ──
-_hay_udp_kernel=0
-_hay_zi_kernel=0
-# Detectar puertos reales
+# ── Detección instantánea de flujos UDP/ZiVPN en kernel (<2ms, sin bloquear con journalctl) ──
 _uc_port=36712
 for _ucf in /root/udp/config.json /etc/UDPCustom/config.json /usr/bin/config.json; do
     [[ -f "$_ucf" ]] && { _uc_port=$(grep -oP '"listen":\s*":?\K[0-9]+' "$_ucf" 2>/dev/null | head -1); break; }
@@ -332,32 +329,23 @@ _zv_port=5667
 [[ -f /etc/zivpn/config.json ]] && _zv_port=$(grep -oP '"listen":\s*":?\K[0-9]+' /etc/zivpn/config.json 2>/dev/null | head -1)
 : "${_zv_port:=5667}"
 if [[ -r /proc/net/nf_conntrack ]]; then
-    grep -q "dport=${_uc_port}" /proc/net/nf_conntrack 2>/dev/null && _hay_udp_kernel=1
-    grep -q "dport=${_zv_port}" /proc/net/nf_conntrack 2>/dev/null && _hay_zi_kernel=1
+    read -r UDP_C ZIP_C < <(awk -v up="dport=$_uc_port" -v zp="dport=$_zv_port" '
+        /udp/ && !/UNREPLIED/ {
+            if (index($0, up)) {
+                for (i=1; i<=NF; i++) if ($i ~ /^src=/) { u[$i]=1; break }
+            } else if (index($0, zp)) {
+                for (i=1; i<=NF; i++) if ($i ~ /^src=/) { z[$i]=1; break }
+            }
+        }
+        END { printf "%d %d", length(u)+0, length(z)+0 }
+    ' /proc/net/nf_conntrack 2>/dev/null)
+    UDP_C="${UDP_C//[^0-9]/}"; : "${UDP_C:=0}"
+    ZIP_C="${ZIP_C//[^0-9]/}"; : "${ZIP_C:=0}"
 elif command -v conntrack >/dev/null 2>&1; then
-    conntrack -L -p udp --dport "$_uc_port" 2>/dev/null | grep -qv UNREPLIED && _hay_udp_kernel=1
-    conntrack -L -p udp --dport "$_zv_port" 2>/dev/null | grep -qv UNREPLIED && _hay_zi_kernel=1
-fi
-
-if [[ -f "$BASE/herramientas/conexiones.sh" ]]; then
-    source "$BASE/herramientas/conexiones.sh" 2>/dev/null
-    # Solo consultar journalctl si hay flujos reales activos en kernel
-    if [[ $_hay_udp_kernel -eq 1 ]]; then
-        while IFS='|' read -r k_ip k_user k_port; do
-            [[ -z "$k_user" || "$k_ip" =~ ^# ]] && continue
-            ((UDP_C++))
-            UNIFIED_USERS+=("$k_user")
-        done < <(conexiones_udp_custom 1 2>/dev/null)
-    fi
-
-    # Conexiones y usuarios ZiVPN reales
-    if [[ $_hay_zi_kernel -eq 1 ]]; then
-        while IFS='|' read -r z_auth z_ip z_fec; do
-            [[ -z "$z_auth" || "$z_auth" =~ ^# ]] && continue
-            ((ZIP_C++))
-            UNIFIED_USERS+=("$z_auth")
-        done < <(zivpn_sesiones_reales 1 "5667" 2>/dev/null)
-    fi
+    UDP_C=$(timeout 1s conntrack -L -p udp --dport "$_uc_port" 2>/dev/null | grep -cv UNREPLIED) || UDP_C=0
+    ZIP_C=$(timeout 1s conntrack -L -p udp --dport "$_zv_port" 2>/dev/null | grep -cv UNREPLIED) || ZIP_C=0
+    UDP_C="${UDP_C//[^0-9]/}"; : "${UDP_C:=0}"
+    ZIP_C="${ZIP_C//[^0-9]/}"; : "${ZIP_C:=0}"
 fi
 
 # BadVPN y Xray vía sockets TCP establecidos directos (sin volcados pesados de ss a /tmp)
@@ -859,12 +847,13 @@ if [[ $- == *i* && -z "${MAXINET_IN_MENU:-}" ]]; then
 fi
 EOF
         chmod +x "$FILE"
+        touch /root/.hushlogin 2>/dev/null || true
         echo -e "${GREEN}✅ ${AUTO_ON:-Auto inicio activado}${RESET}"
     else
         sed -i '/^AUTO_START=/d;/^AUTO_START_MANUAL=/d' "$CONFIG"
         echo "AUTO_START=OFF" >> "$CONFIG"
         echo "AUTO_START_MANUAL=1" >> "$CONFIG"
-        rm -f "$FILE"
+        rm -f "$FILE" /root/.hushlogin
         echo -e "${GOLD}⚠️ ${AUTO_OFF:-Auto inicio desactivado}${RESET}"
     fi
     sleep 2

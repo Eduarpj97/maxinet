@@ -368,11 +368,11 @@ reinstalar_zivpn() {
     "cert": "$DIR_ZIVPN/zivpn.crt",
     "key": "$DIR_ZIVPN/zivpn.key",
     "log_level": "info",
-    "recv_window_conn": 8388608,
+    "recv_window_conn": 16777216,
     "recv_window_client": 67108864,
     "max_conn_client": 8192,
-    "up_mbps": 100,
-    "down_mbps": 100,
+    "up_mbps": 200,
+    "down_mbps": 200,
     "ignoreClientBandwidth": true,
     "disablePathMTUDiscovery": true,
     "maxIdleTimeout": 60000000000,
@@ -400,7 +400,7 @@ WorkingDirectory=$DIR_ZIVPN
 ExecStart=/usr/local/bin/zivpn server -c $CONFIG_JSON
 Restart=always
 RestartSec=1s
-Nice=-20
+Nice=-5
 LimitNOFILE=1048576
 LimitNPROC=512000
 TasksMax=infinity
